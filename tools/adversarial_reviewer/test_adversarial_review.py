@@ -21,11 +21,14 @@ class AdversarialReviewerTests(unittest.TestCase):
         self.assertTrue(should_ignore_file(".gitignore"))
         self.assertTrue(should_ignore_file(".github/workflows/adversarial-review.yml"))
         self.assertTrue(should_ignore_file("tools/adversarial_reviewer/model.env"))
+        self.assertTrue(should_ignore_file(".vscode/tasks.json"))
+        self.assertTrue(should_ignore_file("Makefile"))
 
         self.assertFalse(should_ignore_file("lua/agent-stream/watcher.lua"))
         self.assertFalse(should_ignore_file("lua/agent-stream/diff_engine.lua"))
         self.assertFalse(should_ignore_file("plugin/agent-stream.lua"))
         self.assertFalse(should_ignore_file("bin/agent-ctl"))
+
 
     def test_mock_reviewer_passes_clean_diff(self):
         diff = "+ local res = vim.diff(s1, s2)"

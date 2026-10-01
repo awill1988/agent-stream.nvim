@@ -24,7 +24,10 @@ IGNORE_PATTERNS = [
     r"\.gitignore$",
     r"^\.github/",
     r"^tools/",
+    r"^\.vscode/",
+    r"^Makefile$",
 ]
+
 
 MAX_DIFF_LINES = 250
 
