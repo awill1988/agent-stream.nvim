@@ -64,6 +64,30 @@
         }
       },
       "problemMatcher": []
+    },
+    {
+      "label": "review:mock",
+      "type": "shell",
+      "command": "python3 tools/adversarial_reviewer/adversarial_review.py --mock --base HEAD~1",
+      "group": "test",
+      "options": {
+        "env": {
+          "LOG_LEVEL": "info"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "review:local",
+      "type": "shell",
+      "command": "python3 tools/adversarial_reviewer/adversarial_review.py --base HEAD~1",
+      "group": "test",
+      "options": {
+        "env": {
+          "LOG_LEVEL": "info"
+        }
+      },
+      "problemMatcher": []
     }
   ]
 }

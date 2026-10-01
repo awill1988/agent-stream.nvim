@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Install plenary.nvim
+        run: |
+          mkdir -p ~/.local/share/nvim/lazy
+          git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/lazy/plenary.nvim
+
+      - name: Run Tests
+        run: make test
+
+      - name: Validate Syntax
+        run: make lint
+
+      - name: Profile Memory
+        run: make profile-memory
+
+      - name: Test Adversarial Reviewer Harness
+        run: python3 tools/adversarial_reviewer/test_adversarial_review.py
