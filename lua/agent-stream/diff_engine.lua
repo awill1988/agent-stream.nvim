@@ -1,37 +1,33 @@
--- diff_engine.lua: line-level diff calculation and event streaming
 local M = {}
 
 ---@class DiffHunk
 ---@field type "add"|"delete"|"change"
----@field orig_start number 1-indexed start line in original buffer
----@field orig_count number Number of lines in original buffer
----@field new_start number 1-indexed start line in new disk content
----@field new_count number Number of lines in new disk content
----@field new_lines string[] Lines from disk content
----@field orig_lines string[] Lines from original buffer
+---@field orig_start number
+---@field orig_count number
+---@field new_start number
+---@field new_count number
+---@field new_lines string[]
+---@field orig_lines string[]
 
 ---@class DiffStats
----@field added number Total added lines
----@field deleted number Total deleted lines
----@field changed number Total modified lines
+---@field added number
+---@field deleted number
+---@field changed number
 
 ---@class DiffResult
----@field bufnr number Neovim buffer handle
----@field file string Absolute path to file
----@field hunks DiffHunk[] List of parsed hunks
----@field stats DiffStats Aggregated modification counts
----@field disk_lines string[] Raw lines read from disk
+---@field bufnr number
+---@field file string
+---@field hunks DiffHunk[]
+---@field stats DiffStats
+---@field disk_lines string[]
 
---- Event listeners map
----@type table<string, function[]>
+-- Invariant: buffer text is immutable during diffing; raw disk lines are compared against memory buffers to emit non-destructive hunk deltas.
+
 M.listeners = {
 	diff_updated = {},
 	diff_cleared = {},
 }
 
---- Register an event listener
----@param event "diff_updated"|"diff_cleared"
----@param fn function
 function M.on(event, fn)
 	if not M.listeners[event] then
 		M.listeners[event] = {}
@@ -39,9 +35,6 @@ function M.on(event, fn)
 	table.insert(M.listeners[event], fn)
 end
 
---- Unregister an event listener
----@param event "diff_updated"|"diff_cleared"
----@param fn function
 function M.off(event, fn)
 	local list = M.listeners[event]
 	if not list then
@@ -54,9 +47,6 @@ function M.off(event, fn)
 	end
 end
 
---- Dispatch event to listeners
----@param event "diff_updated"|"diff_cleared"
----@param payload any
 function M.emit(event, payload)
 	local list = M.listeners[event]
 	if not list then
@@ -67,9 +57,6 @@ function M.emit(event, payload)
 	end
 end
 
---- Split text into lines, handling CRLF and trailing newline
----@param text string
----@return string[]
 local function text_to_lines(text)
 	if text == "" then
 		return {}
@@ -81,10 +68,6 @@ local function text_to_lines(text)
 	return vim.split(normalized, "\n", { plain = true })
 end
 
---- Compute diff hunks between buffer lines and disk lines
----@param orig_lines string[] Buffer lines
----@param new_lines string[] Disk lines
----@return DiffHunk[], DiffStats
 function M.compute_hunks(orig_lines, new_lines)
 	local orig_text = #orig_lines > 0 and (table.concat(orig_lines, "\n") .. "\n") or ""
 	local new_text = #new_lines > 0 and (table.concat(new_lines, "\n") .. "\n") or ""
@@ -140,9 +123,6 @@ function M.compute_hunks(orig_lines, new_lines)
 	return hunks, stats
 end
 
---- Read a file asynchronously using libuv
----@param filepath string
----@param callback fun(err: string|nil, content: string|nil)
 function M.read_file_async(filepath, callback)
 	vim.uv.fs_open(filepath, "r", 438 --[[ 0666 ]], function(err_open, fd)
 		if err_open or not fd then
@@ -176,10 +156,6 @@ function M.read_file_async(filepath, callback)
 	end)
 end
 
---- Compare disk file with loaded buffer and stream events
----@param bufnr number
----@param filepath string
----@param callback? fun(result: DiffResult|nil)
 function M.diff_file_with_buffer(bufnr, filepath, callback)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
 		if callback then

@@ -1,15 +1,13 @@
--- watcher.lua: libuv filesystem event management for loaded buffers
 local M = {}
 
---- Watch entries per canonical path
+-- Invariant: internal writes via BufWritePost take precedence over fs_event to prevent self-triggering diff feedback loops.
+
 ---@type table<string, { handle: any, bufs: table<number, boolean>, timer: any }>
 M.watches = {}
 
---- Timestamp of internal buffer writes to suppress self-diffing
 ---@type table<string, number>
 M.internal_writes = {}
 
---- Normalize file path to canonical absolute string
 ---@param path string
 ---@return string
 function M.normalize_path(path)
@@ -19,7 +17,6 @@ function M.normalize_path(path)
 	return vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
 end
 
---- Mark file as having an internal write event
 ---@param filepath string
 function M.mark_internal_write(filepath)
 	local norm = M.normalize_path(filepath)
@@ -28,21 +25,14 @@ function M.mark_internal_write(filepath)
 	end
 end
 
---- Check if file was recently modified by Neovim itself
 ---@param filepath string
 ---@return boolean
 function M.is_internal_write(filepath)
 	local norm = M.normalize_path(filepath)
 	local last = M.internal_writes[norm]
-	if last and (vim.uv.now() - last) < 500 then
-		return true
-	end
-	return false
+	return last ~= nil and (vim.uv.now() - last) < 500
 end
 
---- Process file change after debounce window
----@param path string
----@param bufnr number
 local function process_file_change(path, bufnr)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
 		return
@@ -62,7 +52,6 @@ local function process_file_change(path, bufnr)
 		end
 
 		attribution.detect(path, function(attr_info)
-			-- Auto-reload if configured and buffer is unmodified
 			local is_modified = vim.api.nvim_get_option_value("modified", { buf = bufnr })
 			if config.auto_reload_unmodified and not is_modified then
 				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_result.disk_lines)
@@ -75,14 +64,12 @@ local function process_file_change(path, bufnr)
 				return
 			end
 
-			-- Render decorations
 			renderer.render_diff(bufnr, diff_result, attr_info)
 			explorer.set_badge(path, diff_result.stats, attr_info)
 		end)
 	end)
 end
 
---- Attach watcher to a buffer's underlying file
 ---@param bufnr number
 function M.watch_buffer(bufnr)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -106,7 +93,6 @@ function M.watch_buffer(bufnr)
 
 	local config = require("agent-stream.config").get()
 
-	-- If already watching this path, link the buffer
 	if M.watches[path] then
 		M.watches[path].bufs[bufnr] = true
 		return
@@ -125,16 +111,10 @@ function M.watch_buffer(bufnr)
 	}
 
 	handle:start(path, {}, function(err, filename, events)
-		if err then
+		if err or M.is_internal_write(path) then
 			return
 		end
 
-		-- Filter out internal writes from :w
-		if M.is_internal_write(path) then
-			return
-		end
-
-		-- Debounce rapid edits
 		if timer and not timer:is_closing() then
 			timer:stop()
 			timer:start(config.debounce_ms, 0, vim.schedule_wrap(function()
@@ -150,7 +130,6 @@ function M.watch_buffer(bufnr)
 	end)
 end
 
---- Unwatch buffer and release handle if no other buffers watch the path
 ---@param bufnr number
 function M.unwatch_buffer(bufnr)
 	for path, entry in pairs(M.watches) do
@@ -171,7 +150,6 @@ function M.unwatch_buffer(bufnr)
 	end
 end
 
---- Stop all active watchers and clean up timers
 function M.stop_all()
 	for path, entry in pairs(M.watches) do
 		if entry.timer and not entry.timer:is_closing() then
@@ -186,7 +164,6 @@ function M.stop_all()
 	M.watches = {}
 end
 
---- Initialize autocommands for buffer tracking
 function M.setup()
 	local group = vim.api.nvim_create_augroup("agent_stream_watcher", { clear = true })
 
@@ -212,7 +189,6 @@ function M.setup()
 		end,
 	})
 
-	-- Attach to existing open buffers
 	for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
 		if vim.api.nvim_buf_is_loaded(bufnr) then
 			M.watch_buffer(bufnr)

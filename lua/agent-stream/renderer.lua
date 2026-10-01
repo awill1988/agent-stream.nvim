@@ -1,15 +1,12 @@
--- renderer.lua: non-destructive extmark decoration for buffer diffs
 local M = {}
 
---- Namespace for all agent-stream buffer decorations
+-- Invariant: buffer text and undo history remain untouched; incoming modifications render strictly through extmarks and virtual lines.
+
 M.ns_id = vim.api.nvim_create_namespace("agent_stream")
 
---- Active diff states per buffer
 ---@type table<number, { diff_result: DiffResult, positions: number[], current_index: number }>
 M.active_state = {}
 
---- Clear decorations and state for a buffer
----@param bufnr number
 function M.clear(bufnr)
 	if vim.api.nvim_buf_is_valid(bufnr) then
 		vim.api.nvim_buf_clear_namespace(bufnr, M.ns_id, 0, -1)
@@ -17,10 +14,6 @@ function M.clear(bufnr)
 	M.active_state[bufnr] = nil
 end
 
---- Clamp row to valid buffer line range
----@param bufnr number
----@param row number 0-indexed row
----@return number
 local function clamp_row(bufnr, row)
 	local line_count = vim.api.nvim_buf_line_count(bufnr)
 	if line_count == 0 then
@@ -29,10 +22,6 @@ local function clamp_row(bufnr, row)
 	return math.max(0, math.min(row, line_count - 1))
 end
 
---- Render diff decorations onto a buffer
----@param bufnr number
----@param diff_result DiffResult
----@param attribution AttributionInfo|nil
 function M.render_diff(bufnr, diff_result, attribution)
 	if not vim.api.nvim_buf_is_valid(bufnr) then
 		return
@@ -42,9 +31,7 @@ function M.render_diff(bufnr, diff_result, attribution)
 	vim.api.nvim_buf_clear_namespace(bufnr, M.ns_id, 0, -1)
 
 	local positions = {}
-	local line_count = vim.api.nvim_buf_line_count(bufnr)
 
-	-- Top-of-buffer summary badge
 	local attr_label = attribution and attribution.details or "external"
 	local stats_label = string.format("+%d -%d ~%d", diff_result.stats.added, diff_result.stats.deleted, diff_result.stats.changed)
 	local summary_text = string.format(" 󰚩 [agent-stream: %s | %s] (<leader>aa accept / <leader>ar reject) ", attr_label, stats_label)
@@ -132,9 +119,6 @@ function M.render_diff(bufnr, diff_result, attribution)
 	}
 end
 
---- Navigate to next or previous hunk in buffer
----@param bufnr number
----@param direction 1|-1
 function M.jump_hunk(bufnr, direction)
 	local state = M.active_state[bufnr]
 	if not state or #state.positions == 0 then

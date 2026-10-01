@@ -1,4 +1,3 @@
--- config.lua: configuration management and highlight group registration
 local M = {}
 
 ---@class AgentStreamConfig
@@ -60,15 +59,13 @@ M.defaults = {
 ---@type AgentStreamConfig
 M.values = vim.deepcopy(M.defaults)
 
---- Setup highlight groups according to config
 local function apply_highlights()
 	for group_name, hl_def in pairs(M.values.highlights) do
 		pcall(vim.api.nvim_set_hl, 0, group_name, hl_def)
 	end
 end
 
---- Apply user options over defaults
----@param opts? table User options
+---@param opts? table
 ---@return AgentStreamConfig
 function M.setup(opts)
 	opts = opts or {}
@@ -77,7 +74,6 @@ function M.setup(opts)
 	return M.values
 end
 
---- Get current configuration value
 ---@return AgentStreamConfig
 function M.get()
 	return M.values

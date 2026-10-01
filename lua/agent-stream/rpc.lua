@@ -1,10 +1,9 @@
--- rpc.lua: remote procedure call endpoints for external agent control
 local M = {}
 
---- Namespace for temporary agent highlights and annotations
+-- Seam: external processes communicate via Neovim RPC socket rendezvous at /tmp/agent-stream-<uid>.server.
+
 M.ns_id = vim.api.nvim_create_namespace("agent_stream_rpc")
 
---- Find or open a buffer for a given filepath
 ---@param filepath string
 ---@return number bufnr
 local function ensure_buffer(filepath)
@@ -19,15 +18,13 @@ local function ensure_buffer(filepath)
 	return vim.api.nvim_get_current_buf()
 end
 
---- Focus a file and navigate cursor
----@param filepath string Path to file
----@param line? number 1-indexed target line
----@param col? number 0-indexed target column
----@return boolean success
+---@param filepath string
+---@param line? number
+---@param col? number
+---@return boolean
 function M.focus(filepath, line, col)
 	local bufnr = ensure_buffer(filepath)
 
-	-- Switch to window displaying buffer if available
 	local win = vim.fn.bufwinid(bufnr)
 	if win ~= -1 then
 		vim.api.nvim_set_current_win(win)
@@ -45,7 +42,6 @@ function M.focus(filepath, line, col)
 	return true
 end
 
---- Reveal a file in file explorer (neo-tree or netrw)
 ---@param filepath string
 ---@return boolean
 function M.reveal(filepath)
@@ -56,7 +52,6 @@ function M.reveal(filepath)
 	return ok
 end
 
---- Temporarily highlight a line range
 ---@param filepath string
 ---@param start_line number
 ---@param end_line number
@@ -88,7 +83,6 @@ function M.highlight(filepath, start_line, end_line, duration_ms, hl_group)
 	end, duration_ms)
 end
 
---- Annotate a buffer with a temporary agent message
 ---@param filepath string
 ---@param line number
 ---@param message string
@@ -114,7 +108,6 @@ function M.annotate(filepath, line, message, duration_ms)
 	end, duration_ms)
 end
 
---- Register server socket rendezvous file for CLI control
 function M.setup()
 	local servername = vim.v.servername
 	if not servername or servername == "" then

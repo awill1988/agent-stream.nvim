@@ -1,4 +1,3 @@
--- init.lua: top-level plugin entry point and lifecycle orchestration
 local M = {}
 
 M.config = require("agent-stream.config")
@@ -10,7 +9,6 @@ M.attribution = require("agent-stream.attribution")
 M.explorer = require("agent-stream.explorer")
 M.rpc = require("agent-stream.rpc")
 
--- Forward action methods
 M.accept = M.actions.accept
 M.reject = M.actions.reject
 M.next_hunk = M.actions.next_hunk
@@ -21,8 +19,6 @@ M.reveal = M.rpc.reveal
 M.highlight = M.rpc.highlight
 M.annotate = M.rpc.annotate
 
---- Apply default key mappings
----@param keymaps table<string, string|false>
 local function setup_keymaps(keymaps)
 	if keymaps.accept then
 		vim.keymap.set("n", keymaps.accept, function()
@@ -49,15 +45,13 @@ local function setup_keymaps(keymaps)
 	end
 end
 
---- Setup agent-stream plugin
----@param opts? table User configuration overrides
+---@param opts? table
 function M.setup(opts)
 	local cfg = M.config.setup(opts)
 	M.watcher.setup()
 	M.rpc.setup()
 	setup_keymaps(cfg.keymaps)
 
-	-- Sync explorer badges on diff events
 	M.diff_engine.on("diff_cleared", function(payload)
 		if payload and payload.file then
 			M.explorer.clear_badge(payload.file)
@@ -65,7 +59,6 @@ function M.setup(opts)
 	end)
 end
 
---- Get runtime status summary
 ---@return table
 function M.status()
 	local active_watches = 0

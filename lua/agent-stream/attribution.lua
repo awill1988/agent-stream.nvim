@@ -1,4 +1,3 @@
--- attribution.lua: process, tmux pane, and environment attribution engine
 local M = {}
 
 ---@class AttributionInfo
@@ -7,6 +6,8 @@ local M = {}
 ---@field pid number|nil Process ID if identified
 ---@field pane_id string|nil Tmux pane identifier if identified
 ---@field details string Human-readable summary for statusline/badge
+
+-- Seam: POSIX filesystem metadata lacks an agent flag; attribution queries tmux process hierarchies and /proc ancestry.
 
 local KNOWN_AGENTS = {
 	codex = true,
@@ -22,8 +23,7 @@ local KNOWN_AGENTS = {
 	go = true,
 }
 
---- Parse tmux list-panes output line by line
----@param output string
+---@param output string tmux list-panes output
 ---@param target_file string
 ---@return AttributionInfo|nil
 function M.parse_tmux_panes(output, target_file)
@@ -31,7 +31,6 @@ function M.parse_tmux_panes(output, target_file)
 	local candidates = {}
 
 	for _, line in ipairs(lines) do
-		-- Format: pane_id:pane_pid:pane_current_command:pane_current_path:pane_active
 		local parts = vim.split(line, ":", { plain = true })
 		if #parts >= 4 then
 			local pane_id = parts[1]
@@ -40,17 +39,14 @@ function M.parse_tmux_panes(output, target_file)
 			local path = parts[4] or ""
 			local active = parts[5] or "0"
 
-			-- Exclude current nvim process pane if running inside tmux
 			if cmd ~= "nvim" and cmd ~= "vim" then
 				local score = 0
 				if KNOWN_AGENTS[cmd] then
 					score = score + 10
 				end
-				-- Check path prefix overlap
 				if path ~= "" and target_file:sub(1, #path) == path then
 					score = score + 5
 				end
-				-- Active pane in tmux has high likelihood of issuing recent command
 				if active == "1" then
 					score = score + 2
 				end
@@ -84,13 +80,11 @@ function M.parse_tmux_panes(output, target_file)
 	return nil
 end
 
---- Detect attribution for a modified file
 ---@param filepath string
 ---@param callback fun(info: AttributionInfo)
 function M.detect(filepath, callback)
 	local config = require("agent-stream.config").get()
 
-	-- Check explicit environment token first
 	if vim.env.AGENT_NAME then
 		callback({
 			source = "env",
@@ -102,7 +96,6 @@ function M.detect(filepath, callback)
 		return
 	end
 
-	-- Check tmux panes if in tmux session and enabled
 	if config.attribution.check_tmux and vim.env.TMUX then
 		vim.system(
 			{ "tmux", "list-panes", "-a", "-F", "#{pane_id}:#{pane_pid}:#{pane_current_command}:#{pane_current_path}:#{pane_active}" },
@@ -117,7 +110,6 @@ function M.detect(filepath, callback)
 						end
 					end
 
-					-- Fallback to generic external
 					callback({
 						source = "external",
 						name = "external process",
@@ -131,7 +123,6 @@ function M.detect(filepath, callback)
 		return
 	end
 
-	-- Default external process attribution
 	callback({
 		source = "external",
 		name = "external process",

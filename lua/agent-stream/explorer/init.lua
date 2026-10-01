@@ -1,11 +1,8 @@
--- explorer/init.lua: explorer badge state and abstraction layer
 local M = {}
 
---- Registered badge metadata for active diffs
 ---@type table<string, { stats: DiffStats, attribution: AttributionInfo|nil }>
 M.badges = {}
 
---- Set or update a file badge
 ---@param filepath string
 ---@param stats DiffStats
 ---@param attribution AttributionInfo|nil
@@ -21,7 +18,6 @@ function M.set_badge(filepath, stats, attribution)
 	end
 end
 
---- Clear a file badge
 ---@param filepath string
 function M.clear_badge(filepath)
 	if M.badges[filepath] then
@@ -33,7 +29,6 @@ function M.clear_badge(filepath)
 	end
 end
 
---- Retrieve badge for a path
 ---@param filepath string
 ---@return { stats: DiffStats, attribution: AttributionInfo|nil }|nil
 function M.get_badge(filepath)
