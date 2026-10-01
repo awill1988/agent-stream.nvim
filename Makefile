@@ -22,3 +22,11 @@ profile-memory: ## run memory profiling benchmark
 lint: ## validate syntax of all lua files
 	nvim --headless -u tests/minimal_init.lua -c "lua local files = vim.fn.glob('lua/**/*.lua', false, true); for _, f in ipairs(files) do assert(loadfile(f))() end; print('syntax check passed: ' .. #files .. ' files verified'); vim.cmd('q')"
 
+.PHONY: review-mock
+review-mock: ## run deterministic mock adversarial review
+	python3 tools/adversarial_reviewer/adversarial_review.py --mock --base HEAD~1
+
+.PHONY: review
+review: ## run adversarial review with local model
+	python3 tools/adversarial_reviewer/adversarial_review.py --base HEAD~1
+
