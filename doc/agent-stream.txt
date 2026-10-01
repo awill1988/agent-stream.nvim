@@ -1,0 +1,135 @@
+*agent-stream.txt*    Real-Time Decoupled Agent Stream & Diff Engine
+
+==============================================================================
+CONTENTS                                                 *agent-stream-contents*
+
+    1. Introduction ...................................... |agent-stream-intro|
+    2. Architecture & Fingerprints ................ |agent-stream-architecture|
+    3. Setup & Configuration ............................. |agent-stream-config|
+    4. Commands & Keymaps .............................. |agent-stream-commands|
+    5. Explorer Integration ............................ |agent-stream-explorer|
+    6. External CLI & RPC Control ........................... |agent-stream-rpc|
+
+==============================================================================
+1. INTRODUCTION                                             *agent-stream-intro*
+
+agent-stream.nvim is a Neovim plugin designed to monitor, visualize, and
+coordinate external agents and system processes (such as background LLMs,
+code generation tasks, or CLI tools running in a tmux pane) without requiring
+tight coupling or custom agent integration.
+
+It uses Neovim's native libuv (`vim.uv`) filesystem events to detect changes
+made to loaded buffers and file-explorer paths, computes line-level diffs
+via `vim.diff`, and renders non-destructive virtual text, virtual lines, and
+sign column markers in real time.
+
+==============================================================================
+2. ARCHITECTURE & FINGERPRINTS                    *agent-stream-architecture*
+
+Traditional POSIX metadata (mtime, ctime, uid, gid) does not distinguish
+between an AI agent process and an interactive human user running under the
+same system account.
+
+agent-stream.nvim resolves this distinction across several layers:
+- Tmux Sibling Pane Tracking: queries tmux pane commandlines and active states
+  to correlate external disk modifications with active background agent tasks.
+- Process Inspection: extracts `/proc` descriptors and commandline invocations.
+- Decoupled Diff Engine: computes Myers/Histogram hunks asynchronously without
+  dirtying or invalidating the user's active buffer state or undo tree.
+
+==============================================================================
+3. SETUP & CONFIGURATION                                   *agent-stream-config*
+
+Configure the plugin in your Neovim configuration:
+>lua
+    require("agent-stream").setup({
+        debounce_ms = 150,
+        auto_reload_unmodified = false,
+        show_signs = true,
+        show_virtual_lines = true,
+        show_explorer_badges = true,
+        attribution = {
+            enabled = true,
+            check_tmux = true,
+            check_proc = true,
+        },
+        explorer = {
+            provider = "neo-tree",
+        },
+        keymaps = {
+            accept = "<leader>aa",
+            reject = "<leader>ar",
+            next_hunk = "]a",
+            prev_hunk = "[a",
+        },
+    })
+<
+
+==============================================================================
+4. COMMANDS & KEYMAPS                                    *agent-stream-commands*
+
+:AgentStreamAccept [bufnr]                          *:AgentStreamAccept*
+    Apply external disk changes cleanly into the buffer.
+
+:AgentStreamReject [bufnr]                          *:AgentStreamReject*
+    Reject incoming external changes and rewrite current buffer text to disk.
+
+:AgentStreamNextHunk                                *:AgentStreamNextHunk*
+    Jump cursor to the next external diff hunk.
+
+:AgentStreamPrevHunk                                *:AgentStreamPrevHunk*
+    Jump cursor to the previous external diff hunk.
+
+:AgentStreamClear                                   *:AgentStreamClear*
+    Clear all active diff decorations for the current buffer.
+
+:AgentStreamFocus <file> [line] [col]               *:AgentStreamFocus*
+    Focus the specified file and navigate cursor position.
+
+:AgentStreamReveal <file>                           *:AgentStreamReveal*
+    Reveal the specified file in the active file explorer.
+
+:AgentStreamHighlight <file> <start> <end> [ms]     *:AgentStreamHighlight*
+    Temporarily flash/highlight lines to indicate agent attention.
+
+:AgentStreamAnnotate <file> <line> <message>        *:AgentStreamAnnotate*
+    Render a temporary virtual annotation message.
+
+:AgentStreamStatus                                  *:AgentStreamStatus*
+    Display active watches, diffs, and server socket information.
+
+==============================================================================
+5. EXPLORER INTEGRATION                                 *agent-stream-explorer*
+
+For `neo-tree.nvim`, add the agent-stream badge component to your config:
+>lua
+    require("neo-tree").setup({
+        filesystem = {
+            components = {
+                agent_stream_badge = require("agent-stream.explorer.neo_tree").component,
+            },
+            renderers = {
+                file = {
+                    { "icon" },
+                    { "name", use_git_status_colors = true },
+                    { "agent_stream_badge" },
+                },
+            },
+        },
+    })
+<
+
+==============================================================================
+6. EXTERNAL CLI & RPC CONTROL                                *agent-stream-rpc*
+
+The repository provides `bin/agent-ctl` for external agent scripts:
+>bash
+    agent-ctl focus src/main.rs 42 0
+    agent-ctl reveal src/main.rs
+    agent-ctl highlight src/main.rs 40 45 2000
+    agent-ctl annotate src/main.rs 42 "refactoring error handling"
+    agent-ctl accept src/main.rs
+<
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# agent-ctl: CLI utility for external processes to steer Neovim via agent-stream.nvim
+
+set -euo pipefail
+
+find_server() {
+  if [[ -n "${NVIM:-}" ]]; then
+    echo "$NVIM"
+    return 0
+  fi
+
+  if [[ -n "${NVIM_SERVER:-}" ]]; then
+    echo "$NVIM_SERVER"
+    return 0
+  fi
+
+  local rendezvous_file="/tmp/agent-stream-$(id -u).server"
+  if [[ -f "$rendezvous_file" ]]; then
+    local s
+    s=$(cat "$rendezvous_file")
+    if [[ -S "$s" ]]; then
+      echo "$s"
+      return 0
+    fi
+  fi
+
+  local user_run="/run/user/$(id -u)"
+  if [[ -d "$user_run" ]]; then
+    local sock
+    sock=$(find "$user_run" -maxdepth 1 -name "nvim.*" -type s 2>/dev/null | head -n 1 || true)
+    if [[ -n "$sock" ]]; then
+      echo "$sock"
+      return 0
+    fi
+  fi
+
+  echo ""
+}
+
+SERVER=$(find_server)
+
+if [[ -z "$SERVER" ]]; then
+  echo "error: no active neovim server socket discovered" >&2
+  exit 1
+fi
+
+dispatch() {
+  local lua_expr="$1"
+  nvim --server "$SERVER" --remote-expr "luaeval('$lua_expr')" >/dev/null 2>&1
+}
+
+usage() {
+  cat <<EOF
+usage: agent-ctl <subcommand> [arguments]
+
+subcommands:
+  focus <file> [line] [col]                    focus file buffer and navigate cursor
+  reveal <file>                                reveal file in file explorer
+  highlight <file> <start> <end> [ms]          temporarily highlight line range
+  annotate <file> <line> <message>             render temporary virtual text message
+  accept [file]                                accept external diff in buffer
+  reject [file]                                reject external diff and restore buffer
+  status                                       display active neovim server socket
+EOF
+  exit 1
+}
+
+if [[ $# -lt 1 ]]; then
+  usage
+fi
+
+CMD="$1"
+shift
+
+case "$CMD" in
+  focus)
+    FILE="${1:?missing file argument}"
+    LINE="${2:-1}"
+    COL="${3:-0}"
+    ABS_PATH="$(realpath "$FILE")"
+    dispatch "require('agent-stream.rpc').focus([[$ABS_PATH]], $LINE, $COL)"
+    ;;
+  reveal)
+    FILE="${1:?missing file argument}"
+    ABS_PATH="$(realpath "$FILE")"
+    dispatch "require('agent-stream.rpc').reveal([[$ABS_PATH]])"
+    ;;
+  highlight)
+    FILE="${1:?missing file argument}"
+    START="${2:?missing start line}"
+    END="${3:?missing end line}"
+    DURATION="${4:-1500}"
+    ABS_PATH="$(realpath "$FILE")"
+    dispatch "require('agent-stream.rpc').highlight([[$ABS_PATH]], $START, $END, $DURATION)"
+    ;;
+  annotate)
+    FILE="${1:?missing file argument}"
+    LINE="${2:?missing line number}"
+    MSG="${3:?missing message}"
+    ABS_PATH="$(realpath "$FILE")"
+    dispatch "require('agent-stream.rpc').annotate([[$ABS_PATH]], $LINE, [[$MSG]])"
+    ;;
+  accept)
+    dispatch "require('agent-stream.actions').accept()"
+    ;;
+  reject)
+    dispatch "require('agent-stream.actions').reject()"
+    ;;
+  status)
+    echo "active server: $SERVER"
+    ;;
+  *)
+    usage
+    ;;
+esac
