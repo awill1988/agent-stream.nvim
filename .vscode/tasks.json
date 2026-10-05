@@ -4,7 +4,7 @@
     {
       "label": "test",
       "type": "shell",
-      "command": "nvim --headless -u tests/minimal_init.lua -c \"PlenaryBustedDirectory tests { minimal_init = 'tests/minimal_init.lua' }\"",
+      "command": "make test",
       "group": {
         "kind": "test",
         "isDefault": true
@@ -19,12 +19,11 @@
     {
       "label": "test:debug",
       "type": "shell",
-      "command": "nvim --headless -u tests/minimal_init.lua -c \"PlenaryBustedDirectory tests { minimal_init = 'tests/minimal_init.lua' }\"",
+      "command": "make test-debug",
       "group": "test",
       "options": {
         "env": {
-          "LOG_LEVEL": "debug",
-          "NVIM_LOG_FILE": "/tmp/nvim-agent-stream-debug.log"
+          "LOG_LEVEL": "debug"
         }
       },
       "problemMatcher": []
@@ -32,7 +31,7 @@
     {
       "label": "run:release",
       "type": "shell",
-      "command": "nvim -u tests/minimal_init.lua",
+      "command": "make run",
       "group": "build",
       "options": {
         "env": {
@@ -44,7 +43,7 @@
     {
       "label": "run:debug",
       "type": "shell",
-      "command": "nvim -V1 -u tests/minimal_init.lua",
+      "command": "make run-debug",
       "group": "build",
       "options": {
         "env": {
@@ -56,7 +55,7 @@
     {
       "label": "profile:memory",
       "type": "shell",
-      "command": "nvim --headless -u tests/minimal_init.lua -c \"lua collectgarbage('collect'); local b1 = collectgarbage('count'); require('agent-stream').setup({}); collectgarbage('collect'); local b2 = collectgarbage('count'); print(string.format('memory baseline: %.2f kb | setup overhead: %.2f kb', b1, b2 - b1)); vim.cmd('q')\"",
+      "command": "make profile-memory",
       "group": "none",
       "options": {
         "env": {

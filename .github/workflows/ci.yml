@@ -1,0 +1,144 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Base commit for a generated release PR
+        type: string
+      release_sha:
+        description: Exact merged commit to validate and recover
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ inputs.release_sha }}
+  cancel-in-progress: ${{ github.event_name != 'push' && inputs.release_sha == '' }}
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        neovim: [v0.11.7, stable]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.28.5/install
+      - uses: rhysd/action-setup-vim@b6be9a961870666d5e56a52162ca939cab3af2d5 # v1.4.4
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+      - name: Validate requested commit
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          if [ -n "$RELEASE_SHA" ]; then
+            [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+            git merge-base --is-ancestor HEAD origin/main
+          fi
+      - run: scripts/tools.sh make check
+      - name: Secret scan
+        run: scripts/tools.sh gitleaks git --redact --no-banner
+      - name: Commit and title policy
+        if: github.event_name == 'pull_request' || github.event_name == 'push' || inputs.base_sha != ''
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          python3 scripts/commit_check.py --range "$BASE_SHA" "$HEAD_SHA"
+          if [ -n "$PR_TITLE" ]; then
+            python3 scripts/commit_check.py --title "$PR_TITLE"
+          fi
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f .coverage/summary.md ]; then
+            cat .coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: coverage-${{ matrix.os }}-${{ matrix.neovim }}
+          path: .coverage/
+          include-hidden-files: true
+          if-no-files-found: error
+      - name: Release note preview
+        if: github.event_name == 'pull_request' || inputs.base_sha != ''
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+        run: scripts/tools.sh python3 scripts/release.py preview --base "$BASE_SHA"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'pull_request' || inputs.base_sha != ''
+        with:
+          name: release-preview-${{ matrix.os }}-${{ matrix.neovim }}
+          path: .coverage/release-notes.md
+          include-hidden-files: true
+          if-no-files-found: ignore
+  agent-review:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.release_sha || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.28.5/install
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/agent-stream-review
+          key: review-model-${{ hashFiles('scripts/agent_review.py') }}
+      - name: Review complete change
+        env:
+          BASE_SHA: ${{ inputs.base_sha || github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+          bash scripts/review.sh --base "$BASE_SHA" --head HEAD
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: agent-review
+          path: .coverage/agent-review/
+          include-hidden-files: true
+          if-no-files-found: error
+  release:
+    needs: [check, agent-review]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.release_sha != '' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+    concurrency:
+      group: release-publication
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.release_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.28.5/install
+      - name: Publish exact validated commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/tools.sh python3 scripts/release.py publish --base "$(git rev-parse HEAD^)"

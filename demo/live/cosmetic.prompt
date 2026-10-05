@@ -1,0 +1,1 @@
+This is the second stage of a standalone editor demonstration. Edit only totals.py: rename the local accumulator variable total to positive_total everywhere in sum_positive. Do not change behavior, edit tests, add files, delegate, or commit. Run python3 -m unittest -v, then finish. The user will reject this cosmetic edit in Neovim to demonstrate restoring the accepted version.
