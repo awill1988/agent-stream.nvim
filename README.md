@@ -1,163 +1,130 @@
 # agent-stream.nvim
 
-A Neovim plugin that monitors, streams, and decorates file modifications made by external processes and autonomous agents (e.g. background LLMs, tmux workers, or CLI tools) in real time without requiring agent modifications or editor locking.
+[![CI](https://github.com/awill1988/agent-stream.nvim/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/awill1988/agent-stream.nvim/actions/workflows/ci.yml)
+[![Code review](https://img.shields.io/badge/code_review-blocking-blue)](doc/development.md#code-review)
+[![Neovim](https://img.shields.io/badge/Neovim-0.11.7%2B-57A143?logo=neovim)](https://neovim.io)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## Architecture
+Review external file edits inside Neovim while your agent keeps working.
 
-```
-                          ┌────────────────────────────────┐
-                          │ External Process / Tmux Pane   │
-                          │   (Codex, Claude, Script)      │
-                          └──────┬──────────────────┬──────┘
-                                 │ write(2)         │ agent-ctl (RPC)
-                                 ▼                  ▼
-┌──────────────────────────────────────────────┬───────────────────────────────┐
-│ Linux Filesystem                             │ Neovim (agent-stream.nvim)    │
-│                                              │                               │
-│  [ target_file.lua ] ── vim.uv.fs_event ────►│ Watcher Engine                │
-│                                              │      │                        │
-│                                              │      ▼                        │
-│  [ active buffers  ] ───────────────────────►│ Diff Engine (vim.diff)        │
-│                                              │      │                        │
-│                                              │      ▼                        │
-│  [ tmux /proc ] ──── process attribution ───►│ Event Stream                  │
-│                                              │      │                        │
-│                                              │      ├─► Extmarks & VirtLines │
-│                                              │      ├─► Sign Column Markers  │
-│                                              │      └─► Neo-tree Status Badges│
-└──────────────────────────────────────────────┴───────────────────────────────┘
-```
+`agent-stream.nvim` watches files open in buffers and displays incoming changes as gutter signs and virtual lines. Your buffer stays unchanged until you choose what to keep.
 
-### Agent Fingerprinting & Signatures
+[![Neovim previews live Codex edits in a tmux split, accepts a fix, and rejects a cosmetic change](demo/showcase.gif)](demo/showcase.mp4)
 
-Standard POSIX metadata (`mtime`, `ctime`, `uid`, `gid`) does not distinguish between an automated agent and a human user running within the same user principal. `agent-stream.nvim` solves this through:
+**Live tmux demonstration:** Neovim on the left, Codex editing and running tests on the right. The fix is accepted; a later variable rename is rejected. Idle periods are compressed. [Watch the MP4](demo/showcase.mp4).
 
-1. **Tmux Sibling Tracking**: Inspects sibling pane process hierarchies (`tmux list-panes`) to associate disk writes with active agent processes (e.g. `codex`, `claude`, `aider`, `python`).
-2. **Buffer Change-Tick Isolation**: Distinguishes internal edits (`BufWritePost` / `b:changedtick`) from external writes.
-3. **Decoupled Diff Engine**: Generates real-time unified hunk events and renders them non-destructively as virtual lines and gutter signs, leaving the buffer text and undo tree intact until explicitly accepted or rejected.
+- **Review in place:** additions and replacements appear beside the current buffer.
+- **Keep control:** accept the disk snapshot or restore the buffer version to disk.
+- **Follow your theme:** native Neovim highlights, ordinary-text symbols, explicit overrides.
+- **Use your workflow:** external editors, agent harnesses, and scripts need no plugin API calls.
 
----
+## Install
 
-## Installation
+Requires Neovim `0.11.7+`. No companion plugin or special font is required.
 
-Using [lazy.nvim](https://github.com/folke/lazy.nvim):
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
   "awill1988/agent-stream.nvim",
-  config = function()
-    require("agent-stream").setup({
-      debounce_ms = 150,
-      auto_reload_unmodified = false,
-      show_signs = true,
-      show_virtual_lines = true,
-      show_explorer_badges = true,
-      attribution = {
-        enabled = true,
-        check_tmux = true,
-        check_proc = true,
-      },
-      explorer = {
-        provider = "neo-tree",
-      },
-      keymaps = {
-        accept = "<leader>aa",
-        reject = "<leader>ar",
-        next_hunk = "]a",
-        prev_hunk = "[a",
-      },
-    })
-  end,
+  lazy = false,
+  opts = {},
 }
 ```
 
----
+For other plugin managers, call `require("agent-stream").setup({})` after loading the plugin.
 
-## Keybindings
+## Review changes
 
-| Keybinding | Action |
-| :--- | :--- |
-| `<leader>aa` | **Accept**: Applies external changes cleanly into the buffer |
-| `<leader>ar` | **Reject**: Restores buffer version and rewrites file to disk |
-| `]a` | Jump to next external diff hunk |
-| `[a` | Jump to previous external diff hunk |
+| Command | Result |
+| --- | --- |
+| `:AgentStreamNextHunk` / `:AgentStreamPrevHunk` | Navigate incoming changes |
+| `:AgentStreamAccept` | Replace the buffer with the previewed disk snapshot |
+| `:AgentStreamReject` | Write the current buffer contents back to disk |
+| `:AgentStreamClear` | Clear preview decorations |
+| `:AgentStreamStatus` | Show watcher, diff, and server status |
 
----
+Accept and reject apply to the **whole file**. Accept replaces local buffer edits; reject writes those edits to disk. Previewing changes does not modify buffer text or undo history.
 
-## Commands
+While watching a file, the plugin manages its buffer-local `autoread` setting so native reload does not bypass review. It restores the saved setting on detach if the user has not changed it. Global settings and unrelated buffers are preserved. Set `manage_autoread = false` to opt out; `auto_reload_unmodified = true` separately opts into plugin-controlled acceptance for clean buffers.
 
-- `:AgentStreamAccept [bufnr]` - Accept external changes into buffer
-- `:AgentStreamReject [bufnr]` - Reject external changes and preserve buffer
-- `:AgentStreamNextHunk` - Jump to next hunk
-- `:AgentStreamPrevHunk` - Jump to previous hunk
-- `:AgentStreamClear` - Clear visual decorations on current buffer
-- `:AgentStreamFocus <file> [line] [col]` - Focus file and position cursor
-- `:AgentStreamReveal <file>` - Reveal target file in file explorer
-- `:AgentStreamHighlight <file> <start> <end> [ms]` - Temporarily highlight lines
-- `:AgentStreamAnnotate <file> <line> <message>` - Render virtual comment from agent
-- `:AgentStreamStatus` - Display active watches, diffs, and server socket
+### Optional shortcuts
 
----
-
-## Neo-Tree Integration
-
-To display real-time change badges in `neo-tree.nvim`, register the component:
+No shortcuts are installed by default. Supply only the actions you want:
 
 ```lua
-require("neo-tree").setup({
-  filesystem = {
-    components = {
-      agent_stream_badge = require("agent-stream.explorer.neo_tree").component,
-    },
-    renderers = {
-      file = {
-        { "icon" },
-        { "name", use_git_status_colors = true },
-        { "agent_stream_badge" },
-      },
-    },
+require("agent-stream").setup({
+  keymaps = {
+    accept = "<leader>aa",
+    reject = "<leader>ar",
+    next_hunk = "]a",
+    prev_hunk = "[a",
   },
 })
 ```
 
----
+Use `keymaps = false` or a per-action `false` to disable mappings. Explicit mappings replace global mappings on the supplied keys. Repeated setup removes only mappings still owned by the plugin.
 
-## CLI Control (`agent-ctl`)
+## Make it yours
 
-A standalone CLI script is included under `bin/agent-ctl` for automated scripts, git hooks, and tmux sessions:
-
-```bash
-# Focus Neovim on file and jump to line 42
-agent-ctl focus src/main.rs 42 0
-
-# Reveal file in tree
-agent-ctl reveal src/main.rs
-
-# Flash a highlight over edited region for 2 seconds
-agent-ctl highlight src/main.rs 40 45 2000
-
-# Display a virtual banner from agent
-agent-ctl annotate src/main.rs 42 "refactoring error handling"
+```lua
+require("agent-stream").setup({
+  show_summary = true,
+  show_signs = true,
+  show_virtual_lines = true,
+  sign_priority = 10,
+  signs = { add = "+", delete = "-", change = "~" },
+  symbols = { badge = "", add = "+", change = ">" },
+  highlights = {
+    AgentStreamBadge = { link = "DiagnosticHint" },
+  },
+})
 ```
 
----
+Signs inherit `Added`, `Removed`, and `Changed`; previews use `DiffAdd`, `DiffDelete`, and `DiffChange`. Theme switches restore defaults without overwriting theme-defined groups. Each explicit highlight override replaces the complete default definition and is reapplied after theme changes; add `default = true` to defer to an existing theme definition.
 
-## Development & Testing
+Symbols must be empty or occupy at most two display cells. `sign_priority` accepts integers from `0` through `65535`; higher-priority signs win when gutter space is limited. Your `vim.notify` handler and display options remain in use.
 
-```bash
-# Run tests
-make test
+Existing users: shortcuts are now opt-in, signs use native highlights instead of requiring Gitsigns, and buffer-local `autoread` is managed by default.
 
-# Run tests in debug mode
-make test-debug
+## Integrations
 
-# Run memory profiling
-make profile-memory
+**Neo-tree:** register the badge component in your existing file renderer:
 
-# Check syntax
-make lint
+```lua
+filesystem = {
+  components = {
+    agent_stream_badge = require("agent-stream.explorer.neo_tree").component,
+  },
+  renderers = {
+    file = {
+      { "icon" },
+      { "name", use_git_status_colors = true },
+      { "agent_stream_badge" },
+    },
+  },
+}
 ```
+
+Preserve any other components in your renderer. Background updates refresh an already-loaded Neo-tree manager without loading it. Set `show_explorer_badges = false` to hide badges or `explorer = { provider = false }` to disable the adapter, including reveal.
+
+**External control:** `bin/agent-ctl` provides `focus`, `reveal`, `highlight`, `annotate`, and `accept` over Neovim RPC. Set `rpc = { enabled = false }` to prevent publishing socket discovery. Local commands remain available.
+
+Attribution labels are hints from environment variables and tmux, not proof of which process wrote a file. See [architecture and limitations](doc/architecture.md).
+
+## Development
+
+```sh
+scripts/tools.sh make check
+make agent-review BASE_REF=origin/main HEAD_REF=HEAD
+```
+
+CI runs the minimum and stable Neovim versions on Linux and macOS. It checks formatting, lint, consumer startup, regression tests, tooling, coverage, and media. The local-model review is a separate blocking job; release publication requires both gates.
+
+- [Development, code review, recording, and releases](doc/development.md)
+- [Configuration and command reference](doc/agent-stream.txt)
+- [Interoperability design review](doc/interoperability.md)
 
 ## License
 
-MIT
+[MIT](LICENSE)

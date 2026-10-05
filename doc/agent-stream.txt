@@ -30,17 +30,26 @@ Traditional POSIX metadata (mtime, ctime, uid, gid) does not distinguish
 between an AI agent process and an interactive human user running under the
 same system account.
 
-agent-stream.nvim resolves this distinction across several layers:
-- Tmux Sibling Pane Tracking: queries tmux pane commandlines and active states
-  to correlate external disk modifications with active background agent tasks.
-- Process Inspection: extracts `/proc` descriptors and commandline invocations.
-- Decoupled Diff Engine: computes Myers/Histogram hunks asynchronously without
-  dirtying or invalidating the user's active buffer state or undo tree.
+Attribution is heuristic: AGENT_NAME supplies an explicit hint; otherwise,
+tmux panes are scored by command, directory prefix, and active status. The
+plugin does not inspect process ancestry or /proc; check_proc is unused.
+
+BufWritePost suppresses filesystem events for that path for 500 ms. This is
+a timing heuristic, not change-tick isolation; external writes within that
+window can also be suppressed. Histogram diffs preserve buffer text and undo
+history during preview. Accept replaces buffer contents with the previewed
+disk snapshot. Reject writes current buffer contents, including unsaved edits,
+back to disk.
 
 ==============================================================================
 3. SETUP & CONFIGURATION                                   *agent-stream-config*
 
 Configure the plugin in your Neovim configuration:
+>lua
+    require("agent-stream").setup({})
+<
+
+No mappings are installed by default. Opt in to individual actions:
 >lua
     require("agent-stream").setup({
         debounce_ms = 150,
@@ -64,6 +73,41 @@ Configure the plugin in your Neovim configuration:
         },
     })
 <
+
+keymaps defaults to false. Only supplied actions are mapped; false disables an
+individual action. Explicit mappings replace global mappings on those keys.
+Repeated setup removes only mappings still owned by the plugin.
+
+Theme defaults use native groups and are restored on ColorScheme without
+overwriting theme definitions. AgentStreamSignAdd/Delete/Change link to
+Added/Removed/Changed. AgentStreamAdd/Delete/Change link to DiffAdd/Delete/Change;
+AgentStreamBadge links to DiagnosticInfo and AgentStreamVirtDelete to Comment.
+>lua
+    require("agent-stream").setup({
+        highlights = { AgentStreamBadge = { fg = "#80a0c0" } },
+        symbols = { badge = "", add = "+", change = ">" },
+        signs = { add = "+", delete = "-", change = "~" },
+        sign_priority = 10,
+        show_summary = true,
+    })
+<
+Each explicit highlight replaces its complete default definition and is reapplied
+after theme changes. Use default = true to preserve an existing theme definition.
+Symbols must be empty or printable strings occupying at most two display cells.
+sign_priority is an integer from 0 through 65535. Higher-priority signs win when
+gutter space is limited. show_summary, show_signs, and show_virtual_lines can each
+be disabled. Editor options and the installed vim.notify handler are preserved.
+
+Migration: default shortcuts are now opt-in, signs inherit native colors instead
+of GitSigns groups, and decorations use ordinary text without a special font.
+Existing explicit mapping tables and public commands/actions remain supported.
+
+manage_autoread defaults to true. Watched file buffers temporarily disable native
+autoread so checktime cannot bypass review. Detach restores the original local
+setting only while the plugin still owns it. User option changes relinquish
+ownership. Global autoread and unrelated buffers are untouched. Set
+manage_autoread = false to opt out. auto_reload_unmodified separately opts into
+plugin-controlled acceptance for clean buffers.
 
 ==============================================================================
 4. COMMANDS & KEYMAPS                                    *agent-stream-commands*
@@ -121,6 +165,11 @@ For `neo-tree.nvim`, add the agent-stream badge component to your config:
 
 ==============================================================================
 6. EXTERNAL CLI & RPC CONTROL                                *agent-stream-rpc*
+
+Set rpc = { enabled = false } to prevent publishing RPC discovery. Local commands
+and Lua actions remain available. Background badges do not load Neo-tree. Set
+show_explorer_badges = false to disable badges, or explorer = { provider = false }
+to disable both badges and reveal through the Neo-tree adapter.
 
 The repository provides `bin/agent-ctl` for external agent scripts:
 >bash
