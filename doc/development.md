@@ -46,6 +46,8 @@ Run `make agent-review BASE_REF=origin/main HEAD_REF=HEAD` after committing the 
 
 Every relevant source diff is reviewed in bounded chunks; binary media and generated terminal recordings are excluded. A `REQUEST_CHANGES`, missing dependencies, invalid results, or incomplete inference fails the check. No fallback can approve a review or discard a blocking finding. Findings are fallible and require investigation; deterministic tests remain separate gates. CI publishes summaries and artifacts without posting PR comments.
 
+Lua reviews include [Lua and Neovim guidance](../scripts/review_guidance/lua.md) covering closures, mapping ownership, asynchronous callbacks, option scope, and Plenary hooks. Each excerpt includes the complete current file when it fits the 16,000-character context limit; larger files are explicitly marked as lacking full context while every diff character remains covered. Source text is JSON-encoded to prevent embedded chat delimiters from becoming prompt structure. The runner disables context shifting so it cannot silently discard earlier input to make room for output.
+
 Pushes compare the previous and new commits; pull requests compare the base and head commits. Manual runs accept an explicit `base_sha` and otherwise review the target commit against its parent. Releases depend on both the test matrix and the review job. Post-push checks cannot prevent a direct push, so run the local review before publishing to `main`.
 
 ### Releases
