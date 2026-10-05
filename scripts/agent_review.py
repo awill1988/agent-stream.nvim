@@ -2,6 +2,7 @@
 """Review complete source diffs with a pinned local model."""
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -136,6 +137,8 @@ def parse(raw, path):
 
 
 def infer(runner, weights, chunk):
+    schema = copy.deepcopy(SCHEMA)
+    schema["properties"]["findings"]["items"]["properties"]["file"] = {"enum": [chunk["file"]]}
     prompt = (
         f"<|im_start|>system\n{SYSTEM}<|im_end|>\n"
         f"<|im_start|>user\nFile: {chunk['file']}\n"
@@ -167,7 +170,7 @@ def infer(runner, weights, chunk):
                 "--no-warmup",
                 "--simple-io",
                 "--json-schema",
-                json.dumps(SCHEMA),
+                json.dumps(schema),
             ],
             text=True,
             capture_output=True,
