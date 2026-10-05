@@ -139,24 +139,13 @@ def parse(raw, path):
     return result
 
 
-def infer(runner, weights, chunk, candidate=None):
+def infer(runner, weights, chunk):
     schema = copy.deepcopy(SCHEMA)
     schema["properties"]["findings"]["items"]["properties"]["file"] = {"enum": [chunk["file"]]}
-    verification = ""
-    if candidate is not None:
-        verification = (
-            "\nA preliminary reviewer proposed these UNVERIFIED concerns:\n"
-            + json.dumps(candidate)
-            + "\nIndependently verify each concern against the supplied code. "
-            "Do not repeat an unsupported claim. Check the language's actual semantics. "
-            "For REQUEST_CHANGES, describe a specific input and trace the failing execution. "
-            "A missing unrelated feature, assumed environment, or preference is not a defect. "
-            "Return APPROVE with no findings if the proposed concerns are not demonstrated.\n"
-        )
     prompt = (
         f"<|im_start|>system\n{SYSTEM}<|im_end|>\n"
         f"<|im_start|>user\nFile: {chunk['file']}\n"
-        f"{chunk['diff']}\n{verification}<|im_end|>\n"
+        f"{chunk['diff']}\n<|im_end|>\n"
         "<|im_start|>assistant\n"
     )
     with tempfile.TemporaryDirectory(prefix="agent-review-") as directory:
@@ -180,6 +169,7 @@ def infer(runner, weights, chunk, candidate=None):
                 "-t",
                 "4",
                 "--no-display-prompt",
+                "--no-escape",
                 "--no-conversation",
                 "--no-warmup",
                 "--simple-io",
@@ -211,10 +201,7 @@ def run_review(base, head, cache, output, runner):
             for index, chunk in enumerate(pending, 1):
                 print(f"review {index}/{len(pending)}: {chunk['file']}", flush=True)
                 result = infer(binary, weights, chunk)
-                candidate = result
-                if result["disposition"] == "REQUEST_CHANGES":
-                    result = infer(binary, weights, chunk, candidate=candidate)
-                report["chunks"].append({**chunk, "candidate": candidate, "result": result})
+                report["chunks"].append({**chunk, "result": result})
                 (output / "review.json").write_text(json.dumps(report, indent=2))
         report["complete"] = True
         blocked = any(c["result"]["disposition"] == "REQUEST_CHANGES" for c in report["chunks"])

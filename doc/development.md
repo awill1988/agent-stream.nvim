@@ -44,7 +44,7 @@ The GIF uses FFmpeg `palettegen` and `paletteuse`, 1280-pixel width, 10 fps, inf
 
 Run `make agent-review BASE_REF=origin/main HEAD_REF=HEAD` after committing the proposed changes. This downloads checksum-verified Qwen2.5-Coder 3B GGUF weights and uses the pinned Nix `llama.cpp` runner. It requires no hosted model API key. Results are written to `.coverage/agent-review/`.
 
-Every relevant source diff is reviewed in bounded chunks; binary media and generated terminal recordings are excluded. A separate counterexample-verification pass evaluates proposed blocking findings against the code; artifacts retain both the candidate and final result. A final `REQUEST_CHANGES`, missing dependencies, invalid results, or incomplete inference fails the check. No heuristic fallback can approve a review. Findings are fallible and require investigation; deterministic tests remain separate gates. CI publishes summaries and artifacts without posting PR comments.
+Every relevant source diff is reviewed in bounded chunks; binary media and generated terminal recordings are excluded. A `REQUEST_CHANGES`, missing dependencies, invalid results, or incomplete inference fails the check. No fallback can approve a review or discard a blocking finding. Findings are fallible and require investigation; deterministic tests remain separate gates. CI publishes summaries and artifacts without posting PR comments.
 
 Pushes compare the previous and new commits; pull requests compare the base and head commits. Manual runs accept an explicit `base_sha` and otherwise review the target commit against its parent. Releases depend on both the test matrix and the review job. Post-push checks cannot prevent a direct push, so run the local review before publishing to `main`.
 

@@ -15,10 +15,6 @@ class ReviewTests(unittest.TestCase):
                 "disposition": "REQUEST_CHANGES",
                 "findings": [{"file": "a.lua", "line": 1, "detail": "counterexample"}],
             },
-            {
-                "disposition": "REQUEST_CHANGES",
-                "findings": [{"file": "a.lua", "line": 1, "detail": "verified counterexample"}],
-            },
             {"disposition": "APPROVE", "findings": []},
         ]
         with (
