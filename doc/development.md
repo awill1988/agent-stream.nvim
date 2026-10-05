@@ -42,7 +42,7 @@ The GIF uses FFmpeg `palettegen` and `paletteuse`, 1280-pixel width, 10 fps, inf
 
 ## Code review
 
-Run `make agent-review BASE_REF=origin/main HEAD_REF=HEAD` after committing the proposed changes. This downloads checksum-verified Qwen2.5-Coder 3B GGUF weights and uses the pinned Nix `llama.cpp` runner. It requires no hosted model API key. Results are written to `.coverage/agent-review/`.
+Run `make agent-review BASE_REF=origin/main HEAD_REF=HEAD` after committing the proposed changes. This downloads checksum-verified Qwen2.5-Coder 7B GGUF weights (4.7 GB) and uses the pinned Nix `llama.cpp` runner. It requires no hosted model API key. Results are written to `.coverage/agent-review/`.
 
 Every relevant source diff is reviewed in bounded chunks; binary media and generated terminal recordings are excluded. A `REQUEST_CHANGES`, missing dependencies, invalid results, or incomplete inference fails the check. No fallback can approve a review or discard a blocking finding. Findings are fallible and require investigation; deterministic tests remain separate gates. CI publishes summaries and artifacts without posting PR comments.
 
