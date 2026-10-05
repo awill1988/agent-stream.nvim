@@ -8,6 +8,29 @@ import agent_review as review
 
 
 class ReviewTests(unittest.TestCase):
+    def test_changes_requested_fails_after_all_chunks_are_reviewed(self):
+        pending = [{"file": "a.lua", "diff": "a"}, {"file": "b.lua", "diff": "b"}]
+        answers = [
+            {
+                "disposition": "REQUEST_CHANGES",
+                "findings": [{"file": "a.lua", "line": 1, "detail": "counterexample"}],
+            },
+            {"disposition": "APPROVE", "findings": []},
+        ]
+        with (
+            tempfile.TemporaryDirectory() as root,
+            patch.object(review, "commit", side_effect=lambda x: x),
+            patch.object(review, "chunks", return_value=pending),
+            patch.object(review.shutil, "which", return_value="runner"),
+            patch.object(review, "model", return_value=Path(root) / "model"),
+            patch.object(review, "infer", side_effect=answers),
+        ):
+            output = Path(root) / "report"
+            self.assertEqual(3, review.run_review("base", "head", Path(root), output, "runner"))
+            result = json.loads((output / "review.json").read_text())
+            self.assertTrue(result["complete"])
+            self.assertEqual(2, len(result["chunks"]))
+
     def test_dispositions(self):
         for disposition in ("APPROVE", "COMMENT", "REQUEST_CHANGES"):
             findings = (
