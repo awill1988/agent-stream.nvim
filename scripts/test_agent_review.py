@@ -77,7 +77,7 @@ class ReviewTests(unittest.TestCase):
                 ],
             ),
         ):
-            chunks = review.chunks("base", "head")
+            chunks = review.chunks("base", "head", limit=6000)
         self.assertEqual(diff, "".join(c["diff"] for c in chunks))
         self.assertEqual([0, 6000, 12000], [c["offset"] for c in chunks])
         self.assertTrue(all(c["source"] == "complete source" for c in chunks))

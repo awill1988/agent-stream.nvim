@@ -71,7 +71,7 @@ def relevant(path):
     )
 
 
-def chunks(base, head, limit=6000, context_limit=16000):
+def chunks(base, head, limit=16000, context_limit=16000):
     base, head = commit(base), commit(head)
     paths = git("diff", "--name-only", "-z", base, head).decode().split("\0")
     result = []
