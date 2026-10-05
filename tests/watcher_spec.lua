@@ -11,7 +11,7 @@ describe("watcher", function()
 	end)
 
 	it("identifies internal writes within debounce window", function()
-		local test_path = "/tmp/agent_stream_test.lua"
+		local test_path = vim.fn.tempname()
 		assert.is_false(watcher.is_internal_write(test_path))
 
 		watcher.mark_internal_write(test_path)

@@ -1,6 +1,9 @@
 local diff_engine = require("agent-stream.diff_engine")
 
 describe("diff_engine", function()
+	after_each(function()
+		diff_engine.listeners = { diff_updated = {}, diff_cleared = {} }
+	end)
 	it("detects no hunks for identical text", function()
 		local orig = { "local a = 1", "local b = 2" }
 		local new = { "local a = 1", "local b = 2" }

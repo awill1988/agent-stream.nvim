@@ -33,15 +33,20 @@ function M.render_diff(bufnr, diff_result, attribution)
 	local positions = {}
 
 	local attr_label = attribution and attribution.details or "external"
-	local stats_label = string.format("+%d -%d ~%d", diff_result.stats.added, diff_result.stats.deleted, diff_result.stats.changed)
-	local summary_text = string.format(" 󰚩 [agent-stream: %s | %s] (<leader>aa accept / <leader>ar reject) ", attr_label, stats_label)
-
-	pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_id, 0, 0, {
-		virt_lines = {
-			{ { summary_text, "AgentStreamBadge" } },
-		},
-		virt_lines_above = true,
-	})
+	local stats_label =
+		string.format("+%d -%d ~%d", diff_result.stats.added, diff_result.stats.deleted, diff_result.stats.changed)
+	if config.show_summary then
+		local summary_text = string.format(
+			" %s[agent-stream: %s | %s] (:AgentStreamAccept / :AgentStreamReject) ",
+			config.symbols.badge == "" and "" or config.symbols.badge .. " ",
+			attr_label,
+			stats_label
+		)
+		pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_id, 0, 0, {
+			virt_lines = { { { summary_text, "AgentStreamBadge" } } },
+			virt_lines_above = true,
+		})
+	end
 
 	for _, hunk in ipairs(diff_result.hunks) do
 		local hunk_line = math.max(1, hunk.orig_start)
@@ -53,7 +58,7 @@ function M.render_diff(bufnr, diff_result, attribution)
 
 			if config.show_virtual_lines then
 				for _, line in ipairs(hunk.new_lines) do
-					table.insert(virt_lines, { { "+ " .. line, "AgentStreamAdd" } })
+					table.insert(virt_lines, { { config.symbols.add .. " " .. line, "AgentStreamAdd" } })
 				end
 			end
 
@@ -64,11 +69,11 @@ function M.render_diff(bufnr, diff_result, attribution)
 
 			if config.show_signs then
 				extmark_opts.sign_text = config.signs.add
+				extmark_opts.priority = config.sign_priority
 				extmark_opts.sign_hl_group = "AgentStreamSignAdd"
 			end
 
 			pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_id, row, 0, extmark_opts)
-
 		elseif hunk.type == "delete" then
 			for i = 0, math.max(0, hunk.orig_count - 1) do
 				local row = clamp_row(bufnr, (hunk.orig_start - 1) + i)
@@ -77,18 +82,17 @@ function M.render_diff(bufnr, diff_result, attribution)
 				}
 				if config.show_signs and i == 0 then
 					extmark_opts.sign_text = config.signs.delete
+					extmark_opts.priority = config.sign_priority
 					extmark_opts.sign_hl_group = "AgentStreamSignDelete"
 				end
 				pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_id, row, 0, extmark_opts)
 			end
-
 		elseif hunk.type == "change" then
-			local first_row = clamp_row(bufnr, hunk.orig_start - 1)
 			local virt_lines = {}
 
 			if config.show_virtual_lines then
 				for _, line in ipairs(hunk.new_lines) do
-					table.insert(virt_lines, { { "➜ " .. line, "AgentStreamAdd" } })
+					table.insert(virt_lines, { { config.symbols.change .. " " .. line, "AgentStreamAdd" } })
 				end
 			end
 
@@ -104,6 +108,7 @@ function M.render_diff(bufnr, diff_result, attribution)
 					end
 					if config.show_signs then
 						extmark_opts.sign_text = config.signs.change
+						extmark_opts.priority = config.sign_priority
 						extmark_opts.sign_hl_group = "AgentStreamSignChange"
 					end
 				end

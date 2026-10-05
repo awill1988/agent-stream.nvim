@@ -7,7 +7,7 @@ local M = {}
 ---@field pane_id string|nil Tmux pane identifier if identified
 ---@field details string Human-readable summary for statusline/badge
 
--- Seam: POSIX filesystem metadata lacks an agent flag; attribution queries tmux process hierarchies and /proc ancestry.
+-- Attribution uses environment and tmux hints; it cannot identify the writer with certainty.
 
 local KNOWN_AGENTS = {
 	codex = true,
@@ -97,29 +97,31 @@ function M.detect(filepath, callback)
 	end
 
 	if config.attribution.check_tmux and vim.env.TMUX then
-		vim.system(
-			{ "tmux", "list-panes", "-a", "-F", "#{pane_id}:#{pane_pid}:#{pane_current_command}:#{pane_current_path}:#{pane_active}" },
-			{ text = true },
-			function(result)
-				vim.schedule(function()
-					if result.code == 0 and result.stdout then
-						local found = M.parse_tmux_panes(result.stdout, filepath)
-						if found then
-							callback(found)
-							return
-						end
+		vim.system({
+			"tmux",
+			"list-panes",
+			"-a",
+			"-F",
+			"#{pane_id}:#{pane_pid}:#{pane_current_command}:#{pane_current_path}:#{pane_active}",
+		}, { text = true }, function(result)
+			vim.schedule(function()
+				if result.code == 0 and result.stdout then
+					local found = M.parse_tmux_panes(result.stdout, filepath)
+					if found then
+						callback(found)
+						return
 					end
+				end
 
-					callback({
-						source = "external",
-						name = "external process",
-						pid = nil,
-						pane_id = nil,
-						details = "external process",
-					})
-				end)
-			end
-		)
+				callback({
+					source = "external",
+					name = "external process",
+					pid = nil,
+					pane_id = nil,
+					details = "external process",
+				})
+			end)
+		end)
 		return
 	end
 

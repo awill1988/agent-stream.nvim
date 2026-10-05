@@ -14,7 +14,8 @@ find_server() {
     return 0
   fi
 
-  local rendezvous_file="/tmp/agent-stream-$(id -u).server"
+  local rendezvous_file
+  rendezvous_file="/tmp/agent-stream-$(id -u).server"
   if [[ -f "$rendezvous_file" ]]; then
     local s
     s=$(cat "$rendezvous_file")
@@ -24,7 +25,8 @@ find_server() {
     fi
   fi
 
-  local user_run="/run/user/$(id -u)"
+  local user_run
+  user_run="/run/user/$(id -u)"
   if [[ -d "$user_run" ]]; then
     local sock
     sock=$(find "$user_run" -maxdepth 1 -name "nvim.*" -type s 2>/dev/null | head -n 1 || true)

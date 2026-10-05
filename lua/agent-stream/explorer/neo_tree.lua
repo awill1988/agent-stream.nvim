@@ -5,6 +5,10 @@ local M = {}
 ---@param state table
 ---@return table|nil
 function M.component(config, node, state)
+	local settings = require("agent-stream.config").get()
+	if not settings.show_explorer_badges or settings.explorer.provider ~= "neo-tree" then
+		return nil
+	end
 	if not node or not node.path then
 		return nil
 	end
@@ -17,14 +21,19 @@ function M.component(config, node, state)
 
 	local stats = entry.stats or { added = 0, deleted = 0, changed = 0 }
 	return {
-		text = string.format(" 󰚩 +%d -%d", stats.added, stats.deleted),
+		text = string.format(
+			" %s+%d -%d",
+			settings.symbols.badge == "" and "" or settings.symbols.badge .. " ",
+			stats.added,
+			stats.deleted
+		),
 		highlight = "AgentStreamBadge",
 	}
 end
 
 function M.refresh()
-	local ok, manager = pcall(require, "neo-tree.sources.manager")
-	if ok and manager and manager.refresh then
+	local manager = package.loaded["neo-tree.sources.manager"]
+	if type(manager) == "table" and manager.refresh then
 		pcall(manager.refresh, "filesystem")
 	end
 end

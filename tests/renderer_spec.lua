@@ -1,8 +1,15 @@
 local renderer = require("agent-stream.renderer")
 
 describe("renderer", function()
+	local bufnr
+	after_each(function()
+		if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+			renderer.clear(bufnr)
+			vim.api.nvim_buf_delete(bufnr, { force = true })
+		end
+	end)
 	it("renders extmarks and tracks state for buffer", function()
-		local bufnr = vim.api.nvim_create_buf(false, true)
+		bufnr = vim.api.nvim_create_buf(false, true)
 		vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "line 1", "line 2", "line 3" })
 
 		local diff_result = {

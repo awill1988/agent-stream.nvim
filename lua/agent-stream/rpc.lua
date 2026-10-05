@@ -45,6 +45,9 @@ end
 ---@param filepath string
 ---@return boolean
 function M.reveal(filepath)
+	if require("agent-stream.config").get().explorer.provider ~= "neo-tree" then
+		return false
+	end
 	local norm = vim.fs.normalize(vim.fn.fnamemodify(filepath, ":p"))
 	local ok, _ = pcall(function()
 		vim.cmd("Neotree reveal_file=" .. vim.fn.fnameescape(norm))
@@ -93,10 +96,11 @@ function M.annotate(filepath, line, message, duration_ms)
 
 	local line_count = vim.api.nvim_buf_line_count(bufnr)
 	local row = math.max(0, math.min(line - 1, line_count - 1))
+	local badge = require("agent-stream.config").get().symbols.badge
 
 	local id = vim.api.nvim_buf_set_extmark(bufnr, M.ns_id, row, 0, {
 		virt_lines = {
-			{ { string.format(" 󰚩 [agent]: %s", message), "AgentStreamBadge" } },
+			{ { string.format(" %s[agent]: %s", badge == "" and "" or badge .. " ", message), "AgentStreamBadge" } },
 		},
 		virt_lines_above = true,
 	})
@@ -109,6 +113,9 @@ function M.annotate(filepath, line, message, duration_ms)
 end
 
 function M.setup()
+	if not require("agent-stream.config").get().rpc.enabled then
+		return
+	end
 	local servername = vim.v.servername
 	if not servername or servername == "" then
 		return

@@ -8,6 +8,40 @@ M.watches = {}
 ---@type table<string, number>
 M.internal_writes = {}
 
+local autoread = {}
+local setting_autoread = false
+
+local function set_autoread(bufnr, value)
+	setting_autoread = true
+	local ok, err = pcall(vim.api.nvim_set_option_value, "autoread", value, { buf = bufnr, scope = "local" })
+	setting_autoread = false
+	if not ok then
+		error(err)
+	end
+end
+
+local function own_autoread(bufnr)
+	if autoread[bufnr] or not require("agent-stream.config").get().manage_autoread then
+		return
+	end
+	autoread[bufnr] =
+		{ value = vim.api.nvim_get_option_value("autoread", { buf = bufnr, scope = "local" }), owned = true }
+	set_autoread(bufnr, false)
+end
+
+local function restore_autoread(bufnr)
+	local saved = autoread[bufnr]
+	autoread[bufnr] = nil
+	if
+		saved
+		and saved.owned
+		and vim.api.nvim_buf_is_valid(bufnr)
+		and vim.api.nvim_get_option_value("autoread", { buf = bufnr, scope = "local" }) == false
+	then
+		set_autoread(bufnr, saved.value)
+	end
+end
+
 ---@param path string
 ---@return string
 function M.normalize_path(path)
@@ -34,7 +68,11 @@ function M.is_internal_write(filepath)
 end
 
 local function process_file_change(path, bufnr)
-	if not vim.api.nvim_buf_is_valid(bufnr) then
+	local entry = M.watches[path]
+	local function active()
+		return vim.api.nvim_buf_is_valid(bufnr) and entry ~= nil and M.watches[path] == entry and entry.bufs[bufnr]
+	end
+	if not active() then
 		return
 	end
 
@@ -45,6 +83,9 @@ local function process_file_change(path, bufnr)
 	local explorer = require("agent-stream.explorer")
 
 	diff_engine.diff_file_with_buffer(bufnr, path, function(diff_result)
+		if not active() then
+			return
+		end
 		if not diff_result then
 			renderer.clear(bufnr)
 			explorer.clear_badge(path)
@@ -52,9 +93,13 @@ local function process_file_change(path, bufnr)
 		end
 
 		attribution.detect(path, function(attr_info)
+			if not active() then
+				return
+			end
 			local is_modified = vim.api.nvim_get_option_value("modified", { buf = bufnr })
 			if config.auto_reload_unmodified and not is_modified then
 				vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_result.disk_lines)
+				vim.bo[bufnr].modified = false
 				renderer.clear(bufnr)
 				explorer.clear_badge(path)
 				vim.notify(
@@ -95,6 +140,7 @@ function M.watch_buffer(bufnr)
 
 	if M.watches[path] then
 		M.watches[path].bufs[bufnr] = true
+		own_autoread(bufnr)
 		return
 	end
 
@@ -110,28 +156,38 @@ function M.watch_buffer(bufnr)
 		timer = timer,
 	}
 
-	handle:start(path, {}, function(err, filename, events)
+	local started = handle:start(path, {}, function(err, filename, events)
 		if err or M.is_internal_write(path) then
 			return
 		end
 
 		if timer and not timer:is_closing() then
 			timer:stop()
-			timer:start(config.debounce_ms, 0, vim.schedule_wrap(function()
-				local entry = M.watches[path]
-				if not entry then
-					return
-				end
-				for b, _ in pairs(entry.bufs) do
-					process_file_change(path, b)
-				end
-			end))
+			timer:start(
+				config.debounce_ms,
+				0,
+				vim.schedule_wrap(function()
+					local entry = M.watches[path]
+					if not entry then
+						return
+					end
+					for b, _ in pairs(entry.bufs) do
+						process_file_change(path, b)
+					end
+				end)
+			)
 		end
 	end)
+	if started then
+		own_autoread(bufnr)
+	else
+		M.unwatch_buffer(bufnr)
+	end
 end
 
 ---@param bufnr number
 function M.unwatch_buffer(bufnr)
+	restore_autoread(bufnr)
 	for path, entry in pairs(M.watches) do
 		if entry.bufs[bufnr] then
 			entry.bufs[bufnr] = nil
@@ -151,7 +207,10 @@ function M.unwatch_buffer(bufnr)
 end
 
 function M.stop_all()
-	for path, entry in pairs(M.watches) do
+	for bufnr in pairs(autoread) do
+		restore_autoread(bufnr)
+	end
+	for _, entry in pairs(M.watches) do
 		if entry.timer and not entry.timer:is_closing() then
 			entry.timer:stop()
 			entry.timer:close()
@@ -166,6 +225,35 @@ end
 
 function M.setup()
 	local group = vim.api.nvim_create_augroup("agent_stream_watcher", { clear = true })
+	vim.api.nvim_create_autocmd("OptionSet", {
+		group = group,
+		pattern = "autoread",
+		callback = function()
+			local saved = autoread[vim.api.nvim_get_current_buf()]
+			if saved and not setting_autoread and vim.v.option_command ~= "setglobal" then
+				saved.owned = false
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("FileChangedShell", {
+		group = group,
+		callback = function(args)
+			local saved = autoread[args.buf]
+			if saved and saved.owned then
+				vim.v.fcs_choice = ""
+				process_file_change(M.normalize_path(vim.api.nvim_buf_get_name(args.buf)), args.buf)
+			end
+		end,
+	})
+	vim.api.nvim_create_autocmd("BufFilePre", {
+		group = group,
+		callback = function(args)
+			M.unwatch_buffer(args.buf)
+			require("agent-stream.renderer").clear(args.buf)
+			require("agent-stream.explorer").clear_badge(M.normalize_path(args.file))
+		end,
+	})
+	vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = M.stop_all })
 
 	vim.api.nvim_create_autocmd({ "BufReadPost", "BufFilePost", "BufEnter" }, {
 		group = group,

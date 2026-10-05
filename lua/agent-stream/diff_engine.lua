@@ -21,7 +21,7 @@ local M = {}
 ---@field stats DiffStats
 ---@field disk_lines string[]
 
--- Invariant: buffer text is immutable during diffing; raw disk lines are compared against memory buffers to emit non-destructive hunk deltas.
+-- Diffing compares disk and buffer lines without modifying the buffer.
 
 M.listeners = {
 	diff_updated = {},
@@ -82,7 +82,7 @@ function M.compute_hunks(orig_lines, new_lines)
 
 	for _, raw in ipairs(raw_indices) do
 		local start_a, count_a, start_b, count_b = raw[1], raw[2], raw[3], raw[4]
-		local hunk_type = "change"
+		local hunk_type
 
 		if count_a == 0 and count_b > 0 then
 			hunk_type = "add"
