@@ -1,4 +1,3 @@
--- plugin/agent-stream.lua: command declarations for agent-stream.nvim
 if vim.g.loaded_agent_stream then
 	return
 end

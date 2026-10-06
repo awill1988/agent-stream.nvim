@@ -1,4 +1,3 @@
--- tests/minimal_init.lua: test environment bootstrapper
 local plenary_dir = vim.env.PLENARY_DIR or ".deps/plenary.nvim"
 
 vim.opt.swapfile = false
