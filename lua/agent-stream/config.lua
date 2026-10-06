@@ -94,9 +94,18 @@ function M.setup(opts)
 		"agent-stream: review.grace_period_ms must be an integer of at least 250"
 	)
 	assert(
-		type(values.task_control) == "table" or values.task_control == false,
-		"agent-stream: task_control must be false or a table"
+		type(values.task_control) == "table" or values.task_control == false or values.task_control == "auto",
+		"agent-stream: task_control must be false, auto, or a table"
 	)
+	if values.task_control == "auto" then
+		if vim.env.TMUX and vim.fn.executable("tmux") == 1 then
+			values.attribution.enabled = true
+			values.attribution.check_tmux = true
+			values.task_control = require("agent-stream.transports.tmux")
+		else
+			values.task_control = false
+		end
+	end
 	if values.task_control then
 		for _, action in ipairs({ "interrupt", "resume" }) do
 			assert(

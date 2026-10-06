@@ -60,8 +60,9 @@ require("agent-stream").setup({
 })
 ```
 
-Neovim is the only runtime dependency. The tmux adapter is optional; omit it to
-use review and optimistic acceptance without external process control. `Cancel`
+Neovim is the only runtime dependency. Set `task_control = "auto"` to enable
+the bundled tmux adapter only when Neovim runs inside tmux and tmux is available.
+Otherwise review and optimistic acceptance stay Neovim-only. `Cancel`
 sends `C-c` only to a verified tmux pane, preserves the accepted file
 contents, and leaves `:AgentStreamResume` available. Resume sends a configurable
 instruction to the existing terminal process; it cannot recover an exited process.
