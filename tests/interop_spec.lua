@@ -193,7 +193,8 @@ describe("interoperability", function()
 				summary = mark[4]
 			end
 		end
-		assert.is_truthy(summary.virt_lines[1][1][1]:find(":AgentStreamAccept", 1, true))
+		assert.is_truthy(summary.virt_text[1][1]:find(":AgentStreamAccept", 1, true))
+		assert.are.equal("right_align", summary.virt_text_pos)
 		assert.are.equal("=> after", change.virt_lines[1][1][1])
 		assert.are.equal(12, change.priority)
 		assert.are.same({ "before" }, vim.api.nvim_buf_get_lines(buf, 0, -1, false))

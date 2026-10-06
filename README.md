@@ -41,10 +41,31 @@ For other plugin managers, call `require("agent-stream").setup({})` after loadin
 | `:AgentStreamNextHunk` / `:AgentStreamPrevHunk` | Navigate incoming changes |
 | `:AgentStreamAccept` | Replace the buffer with the previewed disk snapshot |
 | `:AgentStreamReject` | Write the current buffer contents back to disk |
+| `:AgentStreamCancel` | Interrupt the optimistic tmux agent task without reverting accepted edits |
+| `:AgentStreamResume` | Send the configured resume instruction to the interrupted tmux agent task |
 | `:AgentStreamClear` | Clear preview decorations |
 | `:AgentStreamStatus` | Show watcher, diff, and server status |
 
 Accept and reject apply to the **whole file**. Accept replaces local buffer edits; reject writes those edits to disk. Previewing changes does not modify buffer text or undo history.
+
+### Optimistic review
+
+Manual review is the default. To apply clean incoming changes immediately, display a
+three-second countdown, and allow task interruption during that window:
+
+```lua
+require("agent-stream").setup({
+  review = { mode = "optimistic", grace_period_ms = 3000 },
+  task_control = { transport = "tmux" },
+})
+```
+
+`Cancel` sends `C-c` only to a verified tmux pane, preserves the accepted file
+contents, and leaves `:AgentStreamResume` available. Resume sends a configurable
+instruction to the existing terminal process; it cannot recover an exited process.
+The compact countdown is available to statusline plugins through
+`require("agent-stream").statusline()` and updates the `User`
+`AgentStreamStateChanged` event.
 
 While watching a file, the plugin manages its buffer-local `autoread` setting so native reload does not bypass review. It restores the saved setting on detach if the user has not changed it. Global settings and unrelated buffers are preserved. Set `manage_autoread = false` to opt out; `auto_reload_unmodified = true` separately opts into plugin-controlled acceptance for clean buffers.
 

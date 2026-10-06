@@ -65,12 +65,14 @@ No mappings are installed by default. Opt in to individual actions:
         explorer = {
             provider = "neo-tree",
         },
-        keymaps = {
+		keymaps = {
             accept = "<leader>aa",
             reject = "<leader>ar",
             next_hunk = "]a",
             prev_hunk = "[a",
-        },
+		},
+		review = { mode = "optimistic", grace_period_ms = 3000 },
+		task_control = { transport = "tmux" },
     })
 <
 
@@ -109,6 +111,14 @@ ownership. Global autoread and unrelated buffers are untouched. Set
 manage_autoread = false to opt out. auto_reload_unmodified separately opts into
 plugin-controlled acceptance for clean buffers.
 
+review.mode defaults to "manual". "optimistic" applies clean incoming changes
+immediately, then finalizes them after grace_period_ms (3000 by default).
+AgentStreamCancel stops that timer and, when task_control.transport is "tmux",
+sends C-c to the verified attributed pane. It preserves the accepted file text.
+AgentStreamResume sends task_control.resume_prompt to that pane followed by Enter.
+The statusline() function returns a compact optimistic-review state and the User
+AgentStreamStateChanged event fires whenever that state changes.
+
 ==============================================================================
 4. COMMANDS & KEYMAPS                                    *agent-stream-commands*
 
@@ -117,6 +127,12 @@ plugin-controlled acceptance for clean buffers.
 
 :AgentStreamReject [bufnr]                          *:AgentStreamReject*
     Reject incoming external changes and rewrite current buffer text to disk.
+
+:AgentStreamCancel [bufnr]                          *:AgentStreamCancel*
+    Interrupt the optimistic tmux task without reverting accepted changes.
+
+:AgentStreamResume [bufnr]                          *:AgentStreamResume*
+    Send the configured resume instruction to an interrupted tmux task.
 
 :AgentStreamNextHunk                                *:AgentStreamNextHunk*
     Jump cursor to the next external diff hunk.

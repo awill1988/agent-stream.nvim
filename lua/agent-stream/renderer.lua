@@ -43,8 +43,8 @@ function M.render_diff(bufnr, diff_result, attribution)
 			stats_label
 		)
 		pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_id, 0, 0, {
-			virt_lines = { { { summary_text, "AgentStreamBadge" } } },
-			virt_lines_above = true,
+			virt_text = { { summary_text, "AgentStreamBadge" } },
+			virt_text_pos = "right_align",
 		})
 	end
 
@@ -122,6 +122,19 @@ function M.render_diff(bufnr, diff_result, attribution)
 		positions = positions,
 		current_index = 1,
 	}
+end
+
+---@param bufnr number
+---@param text string
+function M.render_status(bufnr, text)
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return
+	end
+	vim.api.nvim_buf_clear_namespace(bufnr, M.ns_id, 0, -1)
+	pcall(vim.api.nvim_buf_set_extmark, bufnr, M.ns_id, 0, 0, {
+		virt_text = { { " " .. text .. " ", "AgentStreamBadge" } },
+		virt_text_pos = "right_align",
+	})
 end
 
 function M.jump_hunk(bufnr, direction)

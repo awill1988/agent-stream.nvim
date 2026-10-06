@@ -11,6 +11,9 @@ M.rpc = require("agent-stream.rpc")
 
 M.accept = M.actions.accept
 M.reject = M.actions.reject
+M.cancel = M.actions.cancel
+M.resume = M.actions.resume
+M.statusline = M.actions.statusline
 M.next_hunk = M.actions.next_hunk
 M.prev_hunk = M.actions.prev_hunk
 M.clear = M.renderer.clear
@@ -77,6 +80,7 @@ function M.status()
 	return {
 		active_watches = active_watches,
 		active_diffs = active_diffs,
+		optimistic = vim.tbl_count(M.actions.optimistic),
 		server = vim.v.servername,
 	}
 end

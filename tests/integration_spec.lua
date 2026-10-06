@@ -79,6 +79,28 @@ describe("integration flow", function()
 		assert.are.same({ "second" }, vim.fn.readfile(path))
 	end)
 
+	it("optimistically accepts a clean buffer then finalizes its grace period", function()
+		stream.setup({
+			debounce_ms = 20,
+			review = { mode = "optimistic", grace_period_ms = 250 },
+			attribution = { check_tmux = false },
+			rpc = { enabled = false },
+		})
+		local incoming = { "accepted immediately" }
+		vim.defer_fn(function()
+			vim.fn.writefile(incoming, path)
+		end, 20)
+		assert.is_true(vim.wait(1000, function()
+			return stream.actions.optimistic[buf] ~= nil and vim.deep_equal(lines(), incoming)
+		end))
+		assert.are.same(incoming, lines())
+		assert.is_not_nil(stream.actions.optimistic[buf])
+		assert.is_true(vim.wait(1000, function()
+			return stream.actions.optimistic[buf] == nil
+		end))
+		assert.are.same(incoming, lines())
+	end)
+
 	it("closes watcher handles and timers when the buffer is deleted", function()
 		local entry = stream.watcher.watches[stream.watcher.normalize_path(path)]
 		vim.api.nvim_buf_delete(buf, { force = true })

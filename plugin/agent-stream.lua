@@ -22,6 +22,22 @@ end, {
 	desc = "Reject external file changes and restore buffer content to disk",
 })
 
+vim.api.nvim_create_user_command("AgentStreamCancel", function(opts)
+	local bufnr = tonumber(opts.args)
+	agent_stream.cancel(bufnr)
+end, {
+	nargs = "?",
+	desc = "Interrupt the optimistic agent task without reverting accepted changes",
+})
+
+vim.api.nvim_create_user_command("AgentStreamResume", function(opts)
+	local bufnr = tonumber(opts.args)
+	agent_stream.resume(bufnr)
+end, {
+	nargs = "?",
+	desc = "Send the configured resume instruction to an interrupted agent task",
+})
+
 vim.api.nvim_create_user_command("AgentStreamNextHunk", function()
 	agent_stream.next_hunk()
 end, {
@@ -98,9 +114,10 @@ vim.api.nvim_create_user_command("AgentStreamStatus", function()
 	local status = agent_stream.status()
 	vim.notify(
 		string.format(
-			"agent-stream: %d active watches, %d active diffs, server: %s",
+			"agent-stream: %d active watches, %d active diffs, %d optimistic accepts, server: %s",
 			status.active_watches,
 			status.active_diffs,
+			status.optimistic,
 			status.server or "none"
 		),
 		vim.log.levels.INFO

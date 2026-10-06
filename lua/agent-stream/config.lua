@@ -17,6 +17,8 @@ local M = {}
 ---@field symbols table<string, string> Preview and badge symbols
 ---@field show_summary boolean Display review commands and change counts
 ---@field sign_priority integer Gutter sign priority
+---@field review table Incoming-change review policy
+---@field task_control table Optional terminal task controls
 M.defaults = {
 	log_level = (vim.env.LOG_LEVEL or "info"):lower(),
 	debounce_ms = 150,
@@ -57,6 +59,14 @@ M.defaults = {
 		socket_name = "agent-stream.sock",
 	},
 	keymaps = false,
+	review = {
+		mode = "manual",
+		grace_period_ms = 3000,
+	},
+	task_control = {
+		transport = false,
+		resume_prompt = "Resume the interrupted task. The current file changes have been accepted. Continue from the current workspace state.",
+	},
 }
 
 ---@type AgentStreamConfig
@@ -75,10 +85,30 @@ function M.setup(opts)
 	assert(type(opts) == "table", "agent-stream: options must be a table")
 	local values = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
 	assert(type(values.manage_autoread) == "boolean", "agent-stream: manage_autoread must be boolean")
+	assert(type(values.review) == "table", "agent-stream: review must be a table")
+	assert(
+		vim.tbl_contains({ "manual", "optimistic" }, values.review.mode),
+		"agent-stream: review.mode must be manual or optimistic"
+	)
+	assert(
+		type(values.review.grace_period_ms) == "number"
+			and values.review.grace_period_ms % 1 == 0
+			and values.review.grace_period_ms >= 250,
+		"agent-stream: review.grace_period_ms must be an integer of at least 250"
+	)
+	assert(type(values.task_control) == "table", "agent-stream: task_control must be a table")
+	assert(
+		values.task_control.transport == false or values.task_control.transport == "tmux",
+		"agent-stream: task_control.transport must be false or tmux"
+	)
+	assert(
+		type(values.task_control.resume_prompt) == "string" and values.task_control.resume_prompt ~= "",
+		"agent-stream: task_control.resume_prompt must be a non-empty string"
+	)
 	assert(type(values.keymaps) == "table" or values.keymaps == false, "agent-stream: invalid keymaps")
 	for action, lhs in pairs(values.keymaps or {}) do
 		assert(
-			vim.tbl_contains({ "accept", "reject", "next_hunk", "prev_hunk" }, action),
+			vim.tbl_contains({ "accept", "reject", "cancel", "resume", "next_hunk", "prev_hunk" }, action),
 			"agent-stream: unknown mapping action"
 		)
 		assert(lhs == false or (type(lhs) == "string" and lhs ~= ""), "agent-stream: invalid mapping")

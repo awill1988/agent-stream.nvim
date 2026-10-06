@@ -108,6 +108,11 @@ local function process_file_change(path, bufnr)
 				)
 				return
 			end
+			if config.review.mode == "optimistic" and not is_modified then
+				require("agent-stream.actions").optimistic_accept(bufnr, diff_result, attr_info)
+				explorer.clear_badge(path)
+				return
+			end
 
 			renderer.render_diff(bufnr, diff_result, attr_info)
 			explorer.set_badge(path, diff_result.stats, attr_info)
@@ -187,6 +192,7 @@ end
 
 ---@param bufnr number
 function M.unwatch_buffer(bufnr)
+	require("agent-stream.actions").clear(bufnr)
 	restore_autoread(bufnr)
 	for path, entry in pairs(M.watches) do
 		if entry.bufs[bufnr] then
@@ -207,6 +213,9 @@ function M.unwatch_buffer(bufnr)
 end
 
 function M.stop_all()
+	for bufnr in pairs(require("agent-stream.actions").optimistic) do
+		require("agent-stream.actions").clear(bufnr)
+	end
 	for bufnr in pairs(autoread) do
 		restore_autoread(bufnr)
 	end
@@ -251,6 +260,12 @@ function M.setup()
 			M.unwatch_buffer(args.buf)
 			require("agent-stream.renderer").clear(args.buf)
 			require("agent-stream.explorer").clear_badge(M.normalize_path(args.file))
+		end,
+	})
+	vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+		group = group,
+		callback = function(args)
+			require("agent-stream.actions").on_local_edit(args.buf)
 		end,
 	})
 	vim.api.nvim_create_autocmd("VimLeavePre", { group = group, callback = M.stop_all })
