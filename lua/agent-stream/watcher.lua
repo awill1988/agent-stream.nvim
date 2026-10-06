@@ -102,13 +102,14 @@ local function process_file_change(path, bufnr)
 				vim.bo[bufnr].modified = false
 				renderer.clear(bufnr)
 				explorer.clear_badge(path)
+				require("agent-stream.actions").navigate_to_first_change(bufnr, diff_result)
 				vim.notify(
 					string.format("agent-stream: auto-reloaded clean buffer (%s)", attr_info.details),
 					vim.log.levels.INFO
 				)
 				return
 			end
-			if config.review.mode == "optimistic" and not is_modified then
+			if config.review.mode == "optimistic" then
 				require("agent-stream.actions").optimistic_accept(bufnr, diff_result, attr_info)
 				explorer.clear_badge(path)
 				return

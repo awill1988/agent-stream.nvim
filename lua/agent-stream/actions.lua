@@ -39,6 +39,37 @@ local function countdown(bufnr)
 	emit_state()
 end
 
+---@param diff_result DiffResult
+---@return number
+function M.get_first_changed_line(diff_result)
+	if not diff_result or not diff_result.hunks or #diff_result.hunks == 0 then
+		return 1
+	end
+	local first_hunk = diff_result.hunks[1]
+	local line = first_hunk.new_start
+	if not line or line < 1 then
+		line = first_hunk.orig_start or 1
+	end
+	line = math.max(1, line)
+	if diff_result.disk_lines and #diff_result.disk_lines > 0 then
+		line = math.min(line, #diff_result.disk_lines)
+	end
+	return line
+end
+
+---@param bufnr number
+---@param diff_result DiffResult
+function M.navigate_to_first_change(bufnr, diff_result)
+	local first_line = M.get_first_changed_line(diff_result)
+	for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+		if vim.api.nvim_win_is_valid(win) then
+			pcall(vim.api.nvim_win_call, win, function()
+				vim.fn.winrestview({ topline = first_line, lnum = first_line, col = 0 })
+			end)
+		end
+	end
+end
+
 ---@param bufnr number
 ---@param diff_result DiffResult
 ---@param attribution table
@@ -49,6 +80,8 @@ function M.optimistic_accept(bufnr, diff_result, attribution)
 	end
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, diff_result.disk_lines)
 	vim.bo[bufnr].modified = false
+	require("agent-stream.renderer").clear(bufnr)
+	M.navigate_to_first_change(bufnr, diff_result)
 	local grace_period_ms = require("agent-stream.config").get().review.grace_period_ms
 	local state = {
 		timer = vim.uv.new_timer(),

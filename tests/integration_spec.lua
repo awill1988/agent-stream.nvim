@@ -101,6 +101,63 @@ describe("integration flow", function()
 		assert.are.same(incoming, lines())
 	end)
 
+	it("overwrites successive streaming updates and positions cursor/view to first changed line", function()
+		stream.setup({
+			debounce_ms = 20,
+			review = { mode = "optimistic", grace_period_ms = 250 },
+			attribution = { check_tmux = false },
+			rpc = { enabled = false },
+		})
+		local update1 = { "header", "middle 1", "footer" }
+		vim.defer_fn(function()
+			vim.fn.writefile(update1, path)
+		end, 20)
+		assert.is_true(vim.wait(1000, function()
+			return vim.deep_equal(lines(), update1)
+		end))
+		assert.are.same(update1, lines())
+
+		-- Successive streaming chunk
+		local update2 = { "header", "middle 2 changed", "footer", "extra" }
+		vim.defer_fn(function()
+			vim.fn.writefile(update2, path)
+		end, 20)
+		assert.is_true(vim.wait(1000, function()
+			return vim.deep_equal(lines(), update2)
+		end))
+		assert.are.same(update2, lines())
+		local win = vim.fn.bufwinid(buf)
+		if win ~= -1 then
+			assert.are.equal(2, vim.api.nvim_win_get_cursor(win)[1])
+		end
+	end)
+
+	it("overwrites incoming streaming updates even when buffer has local modifications", function()
+		stream.setup({
+			debounce_ms = 20,
+			review = { mode = "optimistic", grace_period_ms = 250 },
+			attribution = { check_tmux = false },
+			rpc = { enabled = false },
+		})
+		-- Simulate typing in buffer
+		vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "local user typing" })
+		assert.is_true(vim.bo[buf].modified)
+
+		local incoming = { "stream line 1", "stream line 2" }
+		vim.defer_fn(function()
+			vim.fn.writefile(incoming, path)
+		end, 20)
+		assert.is_true(vim.wait(1000, function()
+			return vim.deep_equal(lines(), incoming)
+		end))
+		assert.are.same(incoming, lines())
+		assert.is_false(vim.bo[buf].modified)
+		local win = vim.fn.bufwinid(buf)
+		if win ~= -1 then
+			assert.are.equal(1, vim.api.nvim_win_get_cursor(win)[1])
+		end
+	end)
+
 	it("closes watcher handles and timers when the buffer is deleted", function()
 		local entry = stream.watcher.watches[stream.watcher.normalize_path(path)]
 		vim.api.nvim_buf_delete(buf, { force = true })
