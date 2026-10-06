@@ -1,5 +1,5 @@
 local config = require("agent-stream.config")
-local task_control = require("agent-stream.task_control")
+local task_control = require("agent-stream.transports.tmux")
 
 describe("tmux task control", function()
 	local original_system
@@ -7,7 +7,7 @@ describe("tmux task control", function()
 	local calls
 
 	before_each(function()
-		config.setup({ task_control = { transport = "tmux", resume_prompt = "resume now" } })
+		config.setup({})
 		calls = {}
 		original_system = vim.system
 		original_executable = vim.fn.executable
@@ -46,7 +46,14 @@ describe("tmux task control", function()
 			return completed ~= nil
 		end))
 		assert.is_true(completed)
-		assert.are.same({ "tmux", "send-keys", "-t", "%8", "-l", "resume now" }, calls[1])
+		assert.are.same({
+			"tmux",
+			"send-keys",
+			"-t",
+			"%8",
+			"-l",
+			"Resume the interrupted task. The current file changes have been accepted. Continue from the current workspace state.",
+		}, calls[1])
 		assert.are.same({ "tmux", "send-keys", "-t", "%8", "Enter" }, calls[2])
 	end)
 

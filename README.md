@@ -56,11 +56,13 @@ three-second countdown, and allow task interruption during that window:
 ```lua
 require("agent-stream").setup({
   review = { mode = "optimistic", grace_period_ms = 3000 },
-  task_control = { transport = "tmux" },
+  task_control = require("agent-stream.transports.tmux"),
 })
 ```
 
-`Cancel` sends `C-c` only to a verified tmux pane, preserves the accepted file
+Neovim is the only runtime dependency. The tmux adapter is optional; omit it to
+use review and optimistic acceptance without external process control. `Cancel`
+sends `C-c` only to a verified tmux pane, preserves the accepted file
 contents, and leaves `:AgentStreamResume` available. Resume sends a configurable
 instruction to the existing terminal process; it cannot recover an exited process.
 The compact countdown is available to statusline plugins through

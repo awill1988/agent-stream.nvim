@@ -72,7 +72,7 @@ No mappings are installed by default. Opt in to individual actions:
             prev_hunk = "[a",
 		},
 		review = { mode = "optimistic", grace_period_ms = 3000 },
-		task_control = { transport = "tmux" },
+		task_control = require("agent-stream.transports.tmux"),
     })
 <
 
@@ -113,9 +113,9 @@ plugin-controlled acceptance for clean buffers.
 
 review.mode defaults to "manual". "optimistic" applies clean incoming changes
 immediately, then finalizes them after grace_period_ms (3000 by default).
-AgentStreamCancel stops that timer and, when task_control.transport is "tmux",
-sends C-c to the verified attributed pane. It preserves the accepted file text.
-AgentStreamResume sends task_control.resume_prompt to that pane followed by Enter.
+Neovim 0.11.7+ is the only runtime dependency. The bundled tmux adapter is
+optional. AgentStreamCancel stops that timer and, when task_control is the tmux
+adapter, sends C-c to the verified attributed pane. It preserves accepted text.
 The statusline() function returns a compact optimistic-review state and the User
 AgentStreamStateChanged event fires whenever that state changes.
 

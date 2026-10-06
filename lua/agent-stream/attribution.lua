@@ -84,6 +84,16 @@ end
 ---@param callback fun(info: AttributionInfo)
 function M.detect(filepath, callback)
 	local config = require("agent-stream.config").get()
+	if not config.attribution.enabled then
+		callback({
+			source = "external",
+			name = "external process",
+			pid = nil,
+			pane_id = nil,
+			details = "external process",
+		})
+		return
+	end
 
 	if vim.env.AGENT_NAME then
 		callback({

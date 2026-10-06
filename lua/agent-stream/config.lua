@@ -46,8 +46,8 @@ M.defaults = {
 		AgentStreamBadge = { default = true, link = "DiagnosticInfo" },
 	},
 	attribution = {
-		enabled = true,
-		check_tmux = true,
+		enabled = false,
+		check_tmux = false,
 		check_proc = true,
 	},
 	explorer = {
@@ -63,10 +63,7 @@ M.defaults = {
 		mode = "manual",
 		grace_period_ms = 3000,
 	},
-	task_control = {
-		transport = false,
-		resume_prompt = "Resume the interrupted task. The current file changes have been accepted. Continue from the current workspace state.",
-	},
+	task_control = false,
 }
 
 ---@type AgentStreamConfig
@@ -96,15 +93,18 @@ function M.setup(opts)
 			and values.review.grace_period_ms >= 250,
 		"agent-stream: review.grace_period_ms must be an integer of at least 250"
 	)
-	assert(type(values.task_control) == "table", "agent-stream: task_control must be a table")
 	assert(
-		values.task_control.transport == false or values.task_control.transport == "tmux",
-		"agent-stream: task_control.transport must be false or tmux"
+		type(values.task_control) == "table" or values.task_control == false,
+		"agent-stream: task_control must be false or a table"
 	)
-	assert(
-		type(values.task_control.resume_prompt) == "string" and values.task_control.resume_prompt ~= "",
-		"agent-stream: task_control.resume_prompt must be a non-empty string"
-	)
+	if values.task_control then
+		for _, action in ipairs({ "interrupt", "resume" }) do
+			assert(
+				type(values.task_control[action]) == "function",
+				"agent-stream: task_control." .. action .. " must be a function"
+			)
+		end
+	end
 	assert(type(values.keymaps) == "table" or values.keymaps == false, "agent-stream: invalid keymaps")
 	for action, lhs in pairs(values.keymaps or {}) do
 		assert(
